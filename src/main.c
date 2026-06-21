@@ -1,4 +1,3 @@
-#include <stdint.h>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -11,13 +10,15 @@
 GLFWwindow *window;
 VkInstance vulkanInstance;
 VkDevice vulkanLogicalDevice;
+VkSurfaceKHR vulkanSurface;
 
 #define VALIDATION_LAYERS_COUNT 1
 
 void cleanup(void) {
-  vkDestroyInstance(vulkanInstance, NULL);
-  vkDestroyDevice(vulkanLogicalDevice, NULL);
   glfwDestroyWindow(window);
+  vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
+  vkDestroyDevice(vulkanLogicalDevice, NULL);
+  vkDestroyInstance(vulkanInstance, NULL);
   glfwTerminate();
   INFO("Cleanup complete");
 }
@@ -31,10 +32,10 @@ int main(void) {
     PANIC(1, "Unable to init GLFW");
   INFO("Initialized GLFW");
 
-  /* Create window */
+  /* Create GLFW window */
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-  window = glfwCreateWindow(640, 480, "Horror", NULL, NULL);
+  window = glfwCreateWindow(640, 480, "Vulkan", NULL, NULL);
   if (!window)
     PANIC(1, "Unable to create GLFW window");
   glfwMakeContextCurrent(window);
@@ -163,22 +164,24 @@ int main(void) {
   }
 
   /* Queue create info */
-  VkDeviceQueueCreateInfo queueCreateInfo[queueFamilyCount];
+  VkDeviceQueueCreateInfo *queueCreateInfo = calloc(sizeof(VkDeviceQueueCreateInfo), queueFamilyCount);
+  float queuePriority = 1.0f;
   for (uint32_t i = 0; i < queueFamilyCount; i++) {
-    float queuePriority = 1.0f;
     VkDeviceQueueCreateInfo info = {
-        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-        .pNext = NULL,
-        .flags = 0,
-        .queueFamilyIndex = i,
-        .queueCount = queueCount[i],
-        .pQueuePriorities = &queuePriority,
+      .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+      .pNext = NULL,
+      .flags = 0,
+      .queueFamilyIndex = i,
+      .queueCount = queueCount[i],
+      .pQueuePriorities = &queuePriority,
     };
     queueCreateInfo[i] = info;
+    INFOF("q1: %f", queuePriority);
+    INFOF("q2: %f", queueCreateInfo[i].pQueuePriorities);
   }
 
   /* Physical device features */
-  VkPhysicalDeviceFeatures deviceFeatures = {.geometryShader = VK_TRUE};
+  VkPhysicalDeviceFeatures deviceFeatures = {0};
 
   /* Logical device */
   VkDeviceCreateInfo createInfo = {
@@ -190,16 +193,27 @@ int main(void) {
       .enabledLayerCount = 0,
       .ppEnabledLayerNames = NULL,
       .pEnabledFeatures = &deviceFeatures,
+      .enabledExtensionCount = 0,
   };
 
-  if (vkCreateDevice(physicalDevice, &createInfo, NULL, &vulkanLogicalDevice) ==
-      VK_SUCCESS) {
+  VkResult result =
+      vkCreateDevice(physicalDevice, &createInfo, NULL, &vulkanLogicalDevice);
+  if (result == VK_SUCCESS) {
     INFO("Created Vulklan logical device");
-  } else
-    PANIC(1, "Unable to create Vulkan logical device");
+  } else {
+    PANICF(1, "Unable to create Vulkan logical device %i", result);
+  }
 
+  /* Graphics queue */
   VkQueue graphicsQueue;
   vkGetDeviceQueue(vulkanLogicalDevice, selectedQueueIndex, 0, &graphicsQueue);
+
+  /* Vulkan surface */
+  if (glfwCreateWindowSurface(vulkanInstance, window, NULL, &vulkanSurface) ==
+      VK_SUCCESS) {
+    INFO("Created Vulkan surface");
+  } else
+    PANIC(1, "Unable to create Vulkan surface");
 
   /* Main loop */
   while (!glfwWindowShouldClose(window)) {
