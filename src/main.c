@@ -1,4 +1,3 @@
-#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
@@ -51,7 +50,7 @@ int main(void) {
       glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
   INFOF("GLFW extensions: %i", glfwExtensionCount);
   for (uint32_t i = 0; i < glfwExtensionCount; i++)
-    INFOF("\t%s", glfwExtensions[i])
+    INFOF("\t%s", glfwExtensions[i]);
 
   /* Validation layers */
   uint32_t availableValidationLayerCount;
@@ -63,7 +62,7 @@ int main(void) {
                                      availableValidationLayers);
   for (uint32_t i = 0; i < availableValidationLayerCount; i++)
     INFOF("\t%s - %s", availableValidationLayers[i].layerName,
-          availableValidationLayers[i].description)
+          availableValidationLayers[i].description);
 
   const char *validationLayers[VALIDATION_LAYERS_COUNT] = {
       "VK_LAYER_KHRONOS_validation"};
@@ -79,7 +78,7 @@ int main(void) {
       }
     }
     if (!layerFound) {
-      PANICF(1, "Validation layer not found: %s", layerName)
+      PANICF(1, "Validation layer not found: %s", layerName);
     }
   }
 
@@ -123,7 +122,7 @@ int main(void) {
   vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, NULL);
   INFOF("Physical devices: %u", deviceCount);
   if (deviceCount == 0)
-    PANIC(1, "No physical device found")
+    PANIC(1, "No physical device found");
   VkPhysicalDevice *physicalDevices =
       calloc(sizeof(VkPhysicalDevice), deviceCount);
   vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, physicalDevices);
@@ -132,13 +131,14 @@ int main(void) {
     vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProperties);
     VkPhysicalDeviceFeatures deviceFeatures;
     vkGetPhysicalDeviceFeatures(physicalDevices[i], &deviceFeatures);
-    INFOF("\t%s", deviceProperties.deviceName)
+    INFOF("\t%s", deviceProperties.deviceName);
     if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
       INFO("\t\tLooks good")
       physicalDevice = physicalDevices[i];
     }
+    else INFO("\t\tIgnored");
   }
-
+  /* Nothing good found */
   if (physicalDevice == VK_NULL_HANDLE)
     PANIC(1, "No suitable device found");
 
@@ -164,20 +164,20 @@ int main(void) {
   }
 
   /* Queue create info */
-  VkDeviceQueueCreateInfo *queueCreateInfo = calloc(sizeof(VkDeviceQueueCreateInfo), queueFamilyCount);
-  float queuePriority = 1.0f;
+  VkDeviceQueueCreateInfo *queueCreateInfo =
+      calloc(sizeof(VkDeviceQueueCreateInfo), queueFamilyCount);
+  // float queuePriority[3] = {1.0f, 1.0f, 1.0f};
+  float queuePriority[1] = {1.0f};
   for (uint32_t i = 0; i < queueFamilyCount; i++) {
     VkDeviceQueueCreateInfo info = {
-      .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-      .pNext = NULL,
-      .flags = 0,
-      .queueFamilyIndex = i,
-      .queueCount = queueCount[i],
-      .pQueuePriorities = &queuePriority,
+        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+        .pNext = NULL,
+        .flags = 0,
+        .queueFamilyIndex = i,
+        .queueCount = queueCount[selectedQueueIndex],
+        .pQueuePriorities = queuePriority,
     };
     queueCreateInfo[i] = info;
-    INFOF("q1: %f", queuePriority);
-    INFOF("q2: %f", queueCreateInfo[i].pQueuePriorities);
   }
 
   /* Physical device features */
@@ -196,13 +196,11 @@ int main(void) {
       .enabledExtensionCount = 0,
   };
 
-  VkResult result =
-      vkCreateDevice(physicalDevice, &createInfo, NULL, &vulkanLogicalDevice);
-  if (result == VK_SUCCESS) {
-    INFO("Created Vulklan logical device");
-  } else {
-    PANICF(1, "Unable to create Vulkan logical device %i", result);
-  }
+  if (vkCreateDevice(physicalDevice, &createInfo, NULL, &vulkanLogicalDevice) ==
+      VK_SUCCESS) {
+    INFO("Created Vulkan logical device");
+  } else
+    PANIC(1, "Unable to create Vulkan logical device");
 
   /* Graphics queue */
   VkQueue graphicsQueue;
