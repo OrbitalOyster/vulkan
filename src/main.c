@@ -1,3 +1,5 @@
+#include <stdint.h>
+#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
@@ -10,11 +12,13 @@ GLFWwindow *window;
 VkInstance vulkanInstance;
 VkDevice vulkanLogicalDevice;
 VkSurfaceKHR vulkanSurface;
+VkSwapchainKHR swapChain;
 
 #define VALIDATION_LAYERS_COUNT 1
 
 void cleanup(void) {
   INFO("Starting cleanup")
+  vkDestroySwapchainKHR(vulkanLogicalDevice, swapChain, NULL);
   vkDestroyDevice(vulkanLogicalDevice, NULL);
   vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
   vkDestroyInstance(vulkanInstance, NULL);
@@ -271,14 +275,131 @@ int main(void) {
   vkGetDeviceQueue(vulkanLogicalDevice, selectedQueueFamilyIndex, 0,
                    &presentQueue);
 
+  /* Surfce capabilities */
+  VkSurfaceCapabilitiesKHR surfaceCapabilities;
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, vulkanSurface,
+                                            &surfaceCapabilities);
+
+  /* Surface formats */
+  uint32_t formatCount;
+  vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, vulkanSurface,
+                                       &formatCount, NULL);
+  INFOF("Surface formats: %u", formatCount)
+  if (formatCount == 0)
+    PANIC(1, "No surface formats available")
+  VkSurfaceFormatKHR *formats = calloc(sizeof(VkSurfaceFormatKHR), formatCount);
+  vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, vulkanSurface,
+                                       &formatCount, formats);
+
+  /* Look for VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR */
+  VkSurfaceFormatKHR surfaceFormat;
+  for (uint32_t i = 0; i < formatCount; i++) {
+    if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
+        formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+      surfaceFormat = formats[i];
+      INFO("Found sRGB surface format")
+      break;
+    }
+  }
+
+  /* Present modes */
+  uint32_t presentModeCount;
+  vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, vulkanSurface,
+                                            &presentModeCount, NULL);
+  INFOF("Present modes: %u", presentModeCount)
+  if (presentModeCount == 0)
+    PANIC(1, "No present modes available")
+  VkPresentModeKHR *presentModes =
+      calloc(sizeof(VkPresentModeKHR), presentModeCount);
+  vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, vulkanSurface,
+                                            &presentModeCount, presentModes);
+  /* Check present mode */
+  VkPresentModeKHR presentMode;
+  for (uint32_t i = 0; i < presentModeCount; i++) {
+    if (presentModes[i] == VK_PRESENT_MODE_FIFO_KHR) {
+      presentMode = presentModes[i];
+      INFO("Found present mode")
+    }
+  }
+
+  /* Swap extent */
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, vulkanSurface,
+                                            &surfaceCapabilities);
+  bool extent_suitable = true;
+  int windowWidth, windowHeight;
+  glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+  VkExtent2D actualExtent = {
+      .width = windowWidth,
+      .height = windowHeight,
+  };
+  actualExtent.width = windowWidth;
+  actualExtent.height = windowHeight;
+  if (surfaceCapabilities.currentExtent.width != (uint32_t)windowWidth ||
+      surfaceCapabilities.currentExtent.height != (uint32_t)windowHeight) {
+    extent_suitable = false;
+    actualExtent.width =
+        (uint32_t)windowWidth > surfaceCapabilities.maxImageExtent.width
+            ? surfaceCapabilities.maxImageExtent.width
+            : windowWidth;
+    actualExtent.width =
+        (uint32_t)windowWidth < surfaceCapabilities.minImageExtent.width
+            ? surfaceCapabilities.minImageExtent.width
+            : windowWidth;
+    actualExtent.height =
+        (uint32_t)windowHeight > surfaceCapabilities.maxImageExtent.height
+            ? surfaceCapabilities.maxImageExtent.height
+            : windowHeight;
+    actualExtent.height =
+        (uint32_t)windowHeight < surfaceCapabilities.minImageExtent.height
+            ? surfaceCapabilities.minImageExtent.height
+            : windowHeight;
+  }
+  VkExtent2D extent = extent_suitable ? surfaceCapabilities.currentExtent : actualExtent;
+
+  /* Create swap chain */
+  uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+  if (surfaceCapabilities.maxImageCount > 0 &&
+      imageCount > surfaceCapabilities.maxImageCount)
+    imageCount = surfaceCapabilities.maxImageCount;
+
+  VkSwapchainCreateInfoKHR createSwapchainInfo = {
+      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+      .surface = vulkanSurface,
+      .minImageCount = imageCount,
+      .imageFormat = surfaceFormat.format,
+      .imageColorSpace = surfaceFormat.colorSpace,
+      .imageExtent = extent,
+      .imageArrayLayers = 1,
+      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      .preTransform = surfaceCapabilities.currentTransform,
+      .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+      .presentMode = presentMode,
+      .clipped = VK_TRUE,
+      .oldSwapchain = VK_NULL_HANDLE,
+  };
+
+  if (vkCreateSwapchainKHR(vulkanLogicalDevice, &createSwapchainInfo, NULL,
+                           &swapChain) == VK_SUCCESS) {
+    INFO("Created swap chain")
+  } else
+    PANIC(1, "Unable to create swap chain")
+
+  /* TODO: Manage separate queues edge case */
+
+  /* Swap chain images */
+  VkImage *swapChainImages;
+  vkGetSwapchainImagesKHR(vulkanLogicalDevice, swapChain, &imageCount, NULL);
+  swapChainImages = calloc(sizeof(VkImage), imageCount);
+  vkGetSwapchainImagesKHR(vulkanLogicalDevice, swapChain, &imageCount, swapChainImages);
+
   // while (!glfwWindowShouldClose(window)) {
   // glClear(GL_COLOR_BUFFER_BIT);
   // glfwSwapBuffers(window);
   // glfwPollEvents();
   // }
 
-  free(availableValidationLayers);
-  free(vulkanExtensionProperties);
+  // free(availableValidationLayers);
+  // free(vulkanExtensionProperties);
 
   cleanup();
 
