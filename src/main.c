@@ -149,23 +149,23 @@ int main(void) {
       calloc(sizeof(VkQueueFamilyProperties), queueFamilyCount);
   vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount,
                                            queueFamilies);
-
   /* Queue count */
   uint32_t queueCount[queueFamilyCount];
-  uint32_t selectedQueueIndex = 0;
+
+  uint32_t selectedQueueFamilyIndex = 0;
   for (uint32_t i = 0; i < queueFamilyCount; i++) {
     queueCount[i] = queueFamilies[i].queueCount;
     if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-      selectedQueueIndex = i;
+      selectedQueueFamilyIndex = i;
       INFOF("\tSelected queue family index: %u, queue count: %u",
-            selectedQueueIndex, queueCount[i])
+            selectedQueueFamilyIndex, queueCount[i])
     }
   }
 
   /* Queue priorities */
   float *queuePriorities =
-      calloc(sizeof(float), queueCount[selectedQueueIndex]);
-  for (uint32_t i = 0; i < queueCount[selectedQueueIndex]; i++)
+      calloc(sizeof(float), queueCount[selectedQueueFamilyIndex]);
+  for (uint32_t i = 0; i < queueCount[selectedQueueFamilyIndex]; i++)
     queuePriorities[i] = 1.0;
 
   /* Queue create info */
@@ -177,7 +177,7 @@ int main(void) {
         .pNext = NULL,
         .flags = 0,
         .queueFamilyIndex = i,
-        .queueCount = queueCount[selectedQueueIndex],
+        .queueCount = queueCount[selectedQueueFamilyIndex],
         .pQueuePriorities = queuePriorities,
     };
     queueCreateInfo[i] = info;
@@ -187,6 +187,40 @@ int main(void) {
   VkPhysicalDeviceFeatures deviceFeatures = {
       .geometryShader = VK_TRUE,
   };
+
+  /* Device extensions */
+  uint32_t requiredExtensionCount = 1;
+  char tmp[requiredExtensionCount][VK_MAX_EXTENSION_NAME_SIZE];
+  strcpy(tmp[0], VK_KHR_SWAPCHAIN_EXTENSION_NAME); // Add extension names here
+  // strcpy(tmp[1], "bogus_extension");
+  const char *requiredExtensionNames[requiredExtensionCount];
+  for (uint32_t i = 0; i < requiredExtensionCount; i++) {
+    requiredExtensionNames[i] = tmp[i];
+    INFOF("Required extension: %s", requiredExtensionNames[i]);
+  }
+
+  /* Check device extension support */
+  uint32_t availableExtentionsCount;
+  vkEnumerateDeviceExtensionProperties(physicalDevice, NULL,
+                                       &availableExtentionsCount, NULL);
+  INFOF("Available extensions: %u", availableExtentionsCount)
+  VkExtensionProperties *availableExtensions =
+      calloc(sizeof(VkExtensionProperties), availableExtentionsCount);
+  vkEnumerateDeviceExtensionProperties(
+      physicalDevice, NULL, &availableExtentionsCount, availableExtensions);
+
+  for (uint32_t j = 0; j < requiredExtensionCount; j++) {
+    bool extensionSupported = false;
+    for (uint32_t i = 0; i < availableExtentionsCount; i++) {
+      if (strcmp(requiredExtensionNames[j],
+                 availableExtensions[i].extensionName) == 0) {
+        extensionSupported = true;
+        break;
+      }
+    }
+    if (!extensionSupported)
+      PANICF(1, "Extension %s not supported", requiredExtensionNames[j])
+  }
 
   /* Logical device */
   VkDeviceCreateInfo createInfo = {
@@ -198,7 +232,8 @@ int main(void) {
       .enabledLayerCount = 0,
       .ppEnabledLayerNames = NULL,
       .pEnabledFeatures = &deviceFeatures,
-      .enabledExtensionCount = 0,
+      .enabledExtensionCount = requiredExtensionCount,
+      .ppEnabledExtensionNames = requiredExtensionNames,
   };
 
   if (vkCreateDevice(physicalDevice, &createInfo, NULL, &vulkanLogicalDevice) ==
@@ -209,7 +244,8 @@ int main(void) {
 
   /* Graphics queue */
   VkQueue graphicsQueue;
-  vkGetDeviceQueue(vulkanLogicalDevice, selectedQueueIndex, 0, &graphicsQueue);
+  vkGetDeviceQueue(vulkanLogicalDevice, selectedQueueFamilyIndex, 0,
+                   &graphicsQueue);
 
   /* Vulkan surface */
   if (glfwCreateWindowSurface(vulkanInstance, window, NULL, &vulkanSurface) ==
@@ -217,6 +253,23 @@ int main(void) {
     INFO("Created Vulkan surface")
   } else
     PANIC(1, "Unable to create Vulkan surface")
+
+  /* Verify surface support */
+  VkBool32 surfaceSupported;
+  vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, selectedQueueFamilyIndex,
+                                       vulkanSurface, &surfaceSupported);
+  /*
+   * TODO: Edge case
+   * "It's actually possible that the queue families supporting drawing commands
+   * and the ones supporting presentation do not overlap"
+   */
+  if (surfaceSupported != VK_TRUE)
+    PANIC(1, "No surface support")
+
+  /* Present queue */
+  VkQueue presentQueue;
+  vkGetDeviceQueue(vulkanLogicalDevice, selectedQueueFamilyIndex, 0,
+                   &presentQueue);
 
   // while (!glfwWindowShouldClose(window)) {
   // glClear(GL_COLOR_BUFFER_BIT);
