@@ -14,55 +14,53 @@ VkSurfaceKHR vulkanSurface;
 #define VALIDATION_LAYERS_COUNT 1
 
 void cleanup(void) {
-  glfwDestroyWindow(window);
-  vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
+  INFO("Starting cleanup")
   vkDestroyDevice(vulkanLogicalDevice, NULL);
+  vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
   vkDestroyInstance(vulkanInstance, NULL);
+  glfwDestroyWindow(window);
   glfwTerminate();
-  INFO("Cleanup complete");
+  INFO("Cleanup complete")
 }
 
 int main(void) {
-  /* Cleanup function */
-  atexit(cleanup);
-
   /* Init GLFW */
   if (!glfwInit())
-    PANIC(1, "Unable to init GLFW");
-  INFO("Initialized GLFW");
+    PANIC(1, "Unable to init GLFW")
+  INFO("Initialized GLFW")
 
   /* Create GLFW window */
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
   window = glfwCreateWindow(640, 480, "Vulkan", NULL, NULL);
   if (!window)
-    PANIC(1, "Unable to create GLFW window");
+    PANIC(1, "Unable to create GLFW window")
   glfwMakeContextCurrent(window);
-  INFO("Created window");
+  INFO("Created window")
 
   /* Check if vulkan is supported */
   if (glfwVulkanSupported())
-    INFO("Vulkan supported");
+    INFO("Vulkan supported")
 
   /* GLFW extensions */
   uint32_t glfwExtensionCount = 0;
   const char **glfwExtensions =
       glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-  INFOF("GLFW extensions: %i", glfwExtensionCount);
+  INFOF("GLFW extensions: %i", glfwExtensionCount)
   for (uint32_t i = 0; i < glfwExtensionCount; i++)
-    INFOF("\t%s", glfwExtensions[i]);
+    INFOF("\t%s", glfwExtensions[i])
 
   /* Validation layers */
   uint32_t availableValidationLayerCount;
   vkEnumerateInstanceLayerProperties(&availableValidationLayerCount, NULL);
-  INFOF("Vulkan validation layers: %u", availableValidationLayerCount);
+  INFOF("Vulkan validation layers: %u", availableValidationLayerCount)
   VkLayerProperties *availableValidationLayers =
       calloc(sizeof(VkLayerProperties), availableValidationLayerCount);
   vkEnumerateInstanceLayerProperties(&availableValidationLayerCount,
                                      availableValidationLayers);
   for (uint32_t i = 0; i < availableValidationLayerCount; i++)
     INFOF("\t%s - %s", availableValidationLayers[i].layerName,
-          availableValidationLayers[i].description);
+          availableValidationLayers[i].description)
 
   const char *validationLayers[VALIDATION_LAYERS_COUNT] = {
       "VK_LAYER_KHRONOS_validation"};
@@ -78,13 +76,13 @@ int main(void) {
       }
     }
     if (!layerFound) {
-      PANICF(1, "Validation layer not found: %s", layerName);
+      PANICF(1, "Validation layer not found: %s", layerName)
     }
   }
 
   /* Gather vulkan info */
   VkApplicationInfo appInfo = {.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                               .pApplicationName = "Hello Triangle",
+                               .pApplicationName = "Vulkan",
                                .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
                                .pEngineName = "No Engine",
                                .engineVersion = VK_MAKE_VERSION(1, 0, 0),
@@ -101,28 +99,28 @@ int main(void) {
   /* Vulkan extensions */
   uint32_t vulkanExtensionCount = 0;
   vkEnumerateInstanceExtensionProperties(NULL, &vulkanExtensionCount, NULL);
-  INFOF("Vulkan extensions: %u", vulkanExtensionCount);
+  INFOF("Vulkan extensions: %u", vulkanExtensionCount)
   VkExtensionProperties *vulkanExtensionProperties =
       calloc(sizeof(VkExtensionProperties), vulkanExtensionCount);
   vkEnumerateInstanceExtensionProperties(NULL, &vulkanExtensionCount,
                                          vulkanExtensionProperties);
   for (uint32_t i = 0; i < vulkanExtensionCount; i++)
-    INFOF("\t%s", vulkanExtensionProperties[i].extensionName);
+    INFOF("\t%s", vulkanExtensionProperties[i].extensionName)
 
   /* Create vulkan instance */
   if (vkCreateInstance(&createVulkanInstanceInfo, NULL, &vulkanInstance) ==
       VK_SUCCESS) {
-    INFO("Created Vulkan instance");
+    INFO("Created Vulkan instance")
   } else
-    PANIC(1, "Unable to create Vulkan instance");
+    PANIC(1, "Unable to create Vulkan instance")
 
   /* Physical device */
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
   uint32_t deviceCount = 0;
   vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, NULL);
-  INFOF("Physical devices: %u", deviceCount);
+  INFOF("Physical devices: %u", deviceCount)
   if (deviceCount == 0)
-    PANIC(1, "No physical device found");
+    PANIC(1, "No physical device found")
   VkPhysicalDevice *physicalDevices =
       calloc(sizeof(VkPhysicalDevice), deviceCount);
   vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, physicalDevices);
@@ -131,22 +129,22 @@ int main(void) {
     vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProperties);
     VkPhysicalDeviceFeatures deviceFeatures;
     vkGetPhysicalDeviceFeatures(physicalDevices[i], &deviceFeatures);
-    INFOF("\t%s", deviceProperties.deviceName);
+    INFOF("\t%s", deviceProperties.deviceName)
     if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
       INFO("\t\tLooks good")
       physicalDevice = physicalDevices[i];
-    }
-    else INFO("\t\tIgnored");
+    } else
+      INFO("\t\tIgnored")
   }
   /* Nothing good found */
   if (physicalDevice == VK_NULL_HANDLE)
-    PANIC(1, "No suitable device found");
+    PANIC(1, "No suitable device found")
 
   /* Queue families */
   uint32_t queueFamilyCount = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount,
                                            NULL);
-  INFOF("Queue families: %u", queueFamilyCount);
+  INFOF("Queue families: %u", queueFamilyCount)
   VkQueueFamilyProperties *queueFamilies =
       calloc(sizeof(VkQueueFamilyProperties), queueFamilyCount);
   vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount,
@@ -159,15 +157,20 @@ int main(void) {
     queueCount[i] = queueFamilies[i].queueCount;
     if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
       selectedQueueIndex = i;
-      INFOF("\tSelected queue index: %u", selectedQueueIndex);
+      INFOF("\tSelected queue family index: %u, queue count: %u",
+            selectedQueueIndex, queueCount[i])
     }
   }
+
+  /* Queue priorities */
+  float *queuePriorities =
+      calloc(sizeof(float), queueCount[selectedQueueIndex]);
+  for (uint32_t i = 0; i < queueCount[selectedQueueIndex]; i++)
+    queuePriorities[i] = 1.0;
 
   /* Queue create info */
   VkDeviceQueueCreateInfo *queueCreateInfo =
       calloc(sizeof(VkDeviceQueueCreateInfo), queueFamilyCount);
-  // float queuePriority[3] = {1.0f, 1.0f, 1.0f};
-  float queuePriority[1] = {1.0f};
   for (uint32_t i = 0; i < queueFamilyCount; i++) {
     VkDeviceQueueCreateInfo info = {
         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -175,13 +178,15 @@ int main(void) {
         .flags = 0,
         .queueFamilyIndex = i,
         .queueCount = queueCount[selectedQueueIndex],
-        .pQueuePriorities = queuePriority,
+        .pQueuePriorities = queuePriorities,
     };
     queueCreateInfo[i] = info;
   }
 
   /* Physical device features */
-  VkPhysicalDeviceFeatures deviceFeatures = {0};
+  VkPhysicalDeviceFeatures deviceFeatures = {
+      .geometryShader = VK_TRUE,
+  };
 
   /* Logical device */
   VkDeviceCreateInfo createInfo = {
@@ -198,9 +203,9 @@ int main(void) {
 
   if (vkCreateDevice(physicalDevice, &createInfo, NULL, &vulkanLogicalDevice) ==
       VK_SUCCESS) {
-    INFO("Created Vulkan logical device");
+    INFO("Created Vulkan logical device")
   } else
-    PANIC(1, "Unable to create Vulkan logical device");
+    PANIC(1, "Unable to create Vulkan logical device")
 
   /* Graphics queue */
   VkQueue graphicsQueue;
@@ -209,19 +214,20 @@ int main(void) {
   /* Vulkan surface */
   if (glfwCreateWindowSurface(vulkanInstance, window, NULL, &vulkanSurface) ==
       VK_SUCCESS) {
-    INFO("Created Vulkan surface");
+    INFO("Created Vulkan surface")
   } else
-    PANIC(1, "Unable to create Vulkan surface");
+    PANIC(1, "Unable to create Vulkan surface")
 
-  /* Main loop */
-  while (!glfwWindowShouldClose(window)) {
-    // glClear(GL_COLOR_BUFFER_BIT);
-    // glfwSwapBuffers(window);
-    glfwPollEvents();
-  }
+  // while (!glfwWindowShouldClose(window)) {
+  // glClear(GL_COLOR_BUFFER_BIT);
+  // glfwSwapBuffers(window);
+  // glfwPollEvents();
+  // }
 
   free(availableValidationLayers);
   free(vulkanExtensionProperties);
+
+  cleanup();
 
   return EXIT_SUCCESS;
 }
