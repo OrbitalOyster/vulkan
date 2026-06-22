@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
@@ -618,7 +618,7 @@ int main(void) {
                          &renderPass) != VK_SUCCESS)
     PANIC(1, "Failed to create render pass")
 
-  VkGraphicsPipelineCreateInfo pipelineInfo = {
+  VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
       .stageCount = 2,
       .pStages = shaderStages,
@@ -640,7 +640,7 @@ int main(void) {
   /* Actual pipeline */
   VkPipeline graphicsPipeline;
   if (vkCreateGraphicsPipelines(vulkanLogicalDevice, VK_NULL_HANDLE, 1,
-                                &pipelineInfo, NULL,
+                                &pipelineCreateInfo, NULL,
                                 &graphicsPipeline) != VK_SUCCESS)
     PANIC(1, "Failed to create graphics pipeline")
 
@@ -650,7 +650,7 @@ int main(void) {
   for (size_t i = 0; i < imageCount; i++) {
     VkImageView attachments[] = {swapChainImageViews[i]};
 
-    VkFramebufferCreateInfo framebufferInfo = {
+    VkFramebufferCreateInfo framebufferCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         .renderPass = renderPass,
         .attachmentCount = 1,
@@ -660,14 +660,69 @@ int main(void) {
         .layers = 1,
     };
 
-    if (vkCreateFramebuffer(vulkanLogicalDevice, &framebufferInfo, NULL,
+    if (vkCreateFramebuffer(vulkanLogicalDevice, &framebufferCreateInfo, NULL,
                             &swapChainFramebuffers[i]) != VK_SUCCESS)
       PANIC(1, "Failed to create framebuffer")
   }
+  INFOF("Created %u framebuffers", imageCount)
+
+  /* Command pools */
+  VkCommandPool commandPool;
+  VkCommandPoolCreateInfo poolInfo = {
+      .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+      .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+      .queueFamilyIndex = selectedQueueFamilyIndex,
+  };
+
+  if (vkCreateCommandPool(vulkanLogicalDevice, &poolInfo, NULL, &commandPool) !=
+      VK_SUCCESS)
+    PANIC(1, "Unable to create command pool")
+
+  /* Command buffer */
+
+  /* Allocate */
+  VkCommandBuffer commandBuffer;
+  VkCommandBufferAllocateInfo allocInfo = {
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+      .commandPool = commandPool,
+      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+      .commandBufferCount = 1,
+  };
+  if (vkAllocateCommandBuffers(vulkanLogicalDevice, &allocInfo,
+                               &commandBuffer) != VK_SUCCESS)
+    PANIC(1, "Unable to allocate command buffers");
+
+  /* Begin */
+  VkCommandBufferBeginInfo commandBufferBeginInfo = {
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      .flags = 0,
+      .pInheritanceInfo = NULL,
+  };
+  if (vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) !=
+      VK_SUCCESS)
+    PANIC(1, "Unable to start recording command buffer")
+
+  VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+
+  // void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
+  // imageIndex)
+  // -------------------------------
+
+  VkRenderPassBeginInfo renderPassBeginInfo = {
+      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+      .renderPass = renderPass,
+      .framebuffer = swapChainFramebuffers[/*imageIndex*/ 0],
+      .renderArea.offset = {0, 0},
+      .renderArea.extent = swapchainExtent,
+      .clearValueCount = 1,
+      .pClearValues = &clearColor,
+  };
+  vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+  // -------------------------------
 
   INFO("Starting cleanup")
   for (uint32_t i = 0; i < imageCount; i++)
-      vkDestroyFramebuffer(vulkanLogicalDevice, swapChainFramebuffers[i], NULL);
+    vkDestroyFramebuffer(vulkanLogicalDevice, swapChainFramebuffers[i], NULL);
   vkDestroyPipeline(vulkanLogicalDevice, graphicsPipeline, NULL);
   vkDestroyPipelineLayout(vulkanLogicalDevice, pipelineLayout, NULL);
   vkDestroyRenderPass(vulkanLogicalDevice, renderPass, NULL);
