@@ -1,5 +1,3 @@
-#include <stdint.h>
-#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
@@ -8,24 +6,13 @@
 
 #include "debug.h"
 
-GLFWwindow *window;
+GLFWwindow *GLFWWindow;
 VkInstance vulkanInstance;
 VkDevice vulkanLogicalDevice;
 VkSurfaceKHR vulkanSurface;
 VkSwapchainKHR swapChain;
 
 #define VALIDATION_LAYERS_COUNT 1
-
-void cleanup(void) {
-  INFO("Starting cleanup")
-  vkDestroySwapchainKHR(vulkanLogicalDevice, swapChain, NULL);
-  vkDestroyDevice(vulkanLogicalDevice, NULL);
-  vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
-  vkDestroyInstance(vulkanInstance, NULL);
-  glfwDestroyWindow(window);
-  glfwTerminate();
-  INFO("Cleanup complete")
-}
 
 int main(void) {
   /* Init GLFW */
@@ -36,10 +23,10 @@ int main(void) {
   /* Create GLFW window */
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-  window = glfwCreateWindow(640, 480, "Vulkan", NULL, NULL);
-  if (!window)
+  GLFWWindow = glfwCreateWindow(640, 480, "Vulkan", NULL, NULL);
+  if (!GLFWWindow)
     PANIC(1, "Unable to create GLFW window")
-  glfwMakeContextCurrent(window);
+  glfwMakeContextCurrent(GLFWWindow);
   INFO("Created window")
 
   /* Check if vulkan is supported */
@@ -128,18 +115,24 @@ int main(void) {
   VkPhysicalDevice *physicalDevices =
       calloc(sizeof(VkPhysicalDevice), deviceCount);
   vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, physicalDevices);
-  for (uint32_t i = 0; i < deviceCount; i++) {
-    VkPhysicalDeviceProperties deviceProperties;
-    vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProperties);
-    VkPhysicalDeviceFeatures deviceFeatures;
-    vkGetPhysicalDeviceFeatures(physicalDevices[i], &deviceFeatures);
-    INFOF("\t%s", deviceProperties.deviceName)
-    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-      INFO("\t\tLooks good")
-      physicalDevice = physicalDevices[i];
-    } else
-      INFO("\t\tIgnored")
-  }
+
+  /* The only device */
+  if (deviceCount == 1)
+    physicalDevice = physicalDevices[0];
+  /* Else - found more suitable */
+  else
+    for (uint32_t i = 0; i < deviceCount; i++) {
+      VkPhysicalDeviceProperties deviceProperties;
+      vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProperties);
+      VkPhysicalDeviceFeatures deviceFeatures;
+      vkGetPhysicalDeviceFeatures(physicalDevices[i], &deviceFeatures);
+      INFOF("\t%s", deviceProperties.deviceName)
+      if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+        INFO("\t\tLooks good")
+        physicalDevice = physicalDevices[i];
+      } else
+        INFO("\t\tIgnored")
+    }
   /* Nothing good found */
   if (physicalDevice == VK_NULL_HANDLE)
     PANIC(1, "No suitable device found")
@@ -188,9 +181,7 @@ int main(void) {
   }
 
   /* Physical device features */
-  VkPhysicalDeviceFeatures deviceFeatures = {
-      .geometryShader = VK_TRUE,
-  };
+  VkPhysicalDeviceFeatures deviceFeatures = {0};
 
   /* Device extensions */
   uint32_t requiredExtensionCount = 1;
@@ -227,7 +218,7 @@ int main(void) {
   }
 
   /* Logical device */
-  VkDeviceCreateInfo createInfo = {
+  VkDeviceCreateInfo createLogicalDeviceInfo = {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
       .pNext = NULL,
       .flags = 0,
@@ -240,8 +231,8 @@ int main(void) {
       .ppEnabledExtensionNames = requiredExtensionNames,
   };
 
-  if (vkCreateDevice(physicalDevice, &createInfo, NULL, &vulkanLogicalDevice) ==
-      VK_SUCCESS) {
+  if (vkCreateDevice(physicalDevice, &createLogicalDeviceInfo, NULL,
+                     &vulkanLogicalDevice) == VK_SUCCESS) {
     INFO("Created Vulkan logical device")
   } else
     PANIC(1, "Unable to create Vulkan logical device")
@@ -252,8 +243,8 @@ int main(void) {
                    &graphicsQueue);
 
   /* Vulkan surface */
-  if (glfwCreateWindowSurface(vulkanInstance, window, NULL, &vulkanSurface) ==
-      VK_SUCCESS) {
+  if (glfwCreateWindowSurface(vulkanInstance, GLFWWindow, NULL,
+                              &vulkanSurface) == VK_SUCCESS) {
     INFO("Created Vulkan surface")
   } else
     PANIC(1, "Unable to create Vulkan surface")
@@ -327,7 +318,7 @@ int main(void) {
                                             &surfaceCapabilities);
   bool extent_suitable = true;
   int windowWidth, windowHeight;
-  glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+  glfwGetFramebufferSize(GLFWWindow, &windowWidth, &windowHeight);
   VkExtent2D actualExtent = {
       .width = windowWidth,
       .height = windowHeight,
@@ -354,7 +345,8 @@ int main(void) {
             ? surfaceCapabilities.minImageExtent.height
             : windowHeight;
   }
-  VkExtent2D extent = extent_suitable ? surfaceCapabilities.currentExtent : actualExtent;
+  VkExtent2D swapchainExtent =
+      extent_suitable ? surfaceCapabilities.currentExtent : actualExtent;
 
   /* Create swap chain */
   uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
@@ -368,7 +360,7 @@ int main(void) {
       .minImageCount = imageCount,
       .imageFormat = surfaceFormat.format,
       .imageColorSpace = surfaceFormat.colorSpace,
-      .imageExtent = extent,
+      .imageExtent = swapchainExtent,
       .imageArrayLayers = 1,
       .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
       .preTransform = surfaceCapabilities.currentTransform,
@@ -390,18 +382,275 @@ int main(void) {
   VkImage *swapChainImages;
   vkGetSwapchainImagesKHR(vulkanLogicalDevice, swapChain, &imageCount, NULL);
   swapChainImages = calloc(sizeof(VkImage), imageCount);
-  vkGetSwapchainImagesKHR(vulkanLogicalDevice, swapChain, &imageCount, swapChainImages);
+  vkGetSwapchainImagesKHR(vulkanLogicalDevice, swapChain, &imageCount,
+                          swapChainImages);
 
-  // while (!glfwWindowShouldClose(window)) {
-  // glClear(GL_COLOR_BUFFER_BIT);
-  // glfwSwapBuffers(window);
-  // glfwPollEvents();
-  // }
+  /* Swap chain image views */
+  VkImageView *swapChainImageViews = calloc(sizeof(VkImageView), imageCount);
+  for (size_t i = 0; i < imageCount; i++) {
+    VkImageViewCreateInfo createImageViewInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = swapChainImages[i],
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = surfaceFormat.format,
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .subresourceRange.baseMipLevel = 0,
+        .subresourceRange.levelCount = 1,
+        .subresourceRange.baseArrayLayer = 0,
+        .subresourceRange.layerCount = 1,
+    };
+    if (vkCreateImageView(vulkanLogicalDevice, &createImageViewInfo, NULL,
+                          &swapChainImageViews[i]) != VK_SUCCESS)
+      PANIC(1, "Failed to create image view")
+  }
 
-  // free(availableValidationLayers);
-  // free(vulkanExtensionProperties);
+  /* Load shaders */
+  FILE *vertexShaderFile = NULL, *fragmentShaderFile = NULL;
+  vertexShaderFile = fopen("shaders/vert.spv", "rb+");
+  fragmentShaderFile = fopen("shaders/frag.spv", "rb+");
+  if (vertexShaderFile == NULL || fragmentShaderFile == NULL) {
+    PANIC(1, "Unable to load shaders")
+  }
+  fseek(vertexShaderFile, 0, SEEK_END);
+  fseek(fragmentShaderFile, 0, SEEK_END);
+  uint32_t vertexShaderFileSize = ftell(vertexShaderFile);
+  uint32_t fragmentShaderFileSize = ftell(fragmentShaderFile);
+  char *vertexShaderCode = (char *)calloc(vertexShaderFileSize, sizeof(char));
+  char *fragmentShaderCode =
+      (char *)calloc(fragmentShaderFileSize, sizeof(char));
+  rewind(vertexShaderFile);
+  rewind(fragmentShaderFile);
+  fread(vertexShaderCode, 1, vertexShaderFileSize, vertexShaderFile);
+  INFOF("Loaded vertex shaders, %u bytes", vertexShaderFileSize)
+  fread(fragmentShaderCode, 1, fragmentShaderFileSize, fragmentShaderFile);
+  INFOF("Loaded fragment shaders, %u bytes", fragmentShaderFileSize)
+  fclose(vertexShaderFile);
+  fclose(fragmentShaderFile);
 
-  cleanup();
+  /* Shader modules */
+  VkShaderModuleCreateInfo createVertexShaderInfo = {
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .codeSize = vertexShaderFileSize,
+      .pCode = (const uint32_t *)vertexShaderCode,
+  };
+  VkShaderModule vertexShaderModule;
+  if (vkCreateShaderModule(vulkanLogicalDevice, &createVertexShaderInfo, NULL,
+                           &vertexShaderModule) != VK_SUCCESS)
+    PANIC(1, "Failed to create vertex shader module")
+  VkShaderModuleCreateInfo createFragmentShaderInfo = {
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .codeSize = fragmentShaderFileSize,
+      .pCode = (const uint32_t *)fragmentShaderCode,
+  };
+  VkShaderModule fragmentShaderModule;
+  if (vkCreateShaderModule(vulkanLogicalDevice, &createFragmentShaderInfo, NULL,
+                           &fragmentShaderModule) != VK_SUCCESS)
+    PANIC(1, "Failed to create fragment shader module")
+
+  /* Shader staging */
+  VkPipelineShaderStageCreateInfo vertexShaderStageInfo = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_VERTEX_BIT,
+      .module = vertexShaderModule,
+      .pName = "main",
+  };
+
+  VkPipelineShaderStageCreateInfo fragmentShaderStageInfo = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+      .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+      .module = fragmentShaderModule,
+      .pName = "main",
+  };
+
+  VkPipelineShaderStageCreateInfo shaderStages[] = {vertexShaderStageInfo,
+                                                    fragmentShaderStageInfo};
+
+  /* Pipeline setup */
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+      .vertexBindingDescriptionCount = 0,
+      .pVertexBindingDescriptions = NULL,
+      .vertexAttributeDescriptionCount = 0,
+      .pVertexAttributeDescriptions = NULL,
+  };
+
+  VkPipelineInputAssemblyStateCreateInfo inputAssembly = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+      .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+      .primitiveRestartEnable = VK_FALSE,
+  };
+
+  VkViewport viewport = {
+      .x = 0.0f,
+      .y = 0.0f,
+      .width = (float)swapchainExtent.width,
+      .height = (float)swapchainExtent.height,
+      .minDepth = 0.0f,
+      .maxDepth = 1.0f,
+  };
+
+  VkRect2D scissor = {
+      .offset = {0, 0},
+      .extent = swapchainExtent,
+  };
+
+  /* TODO: No magic numbers */
+  VkDynamicState dynamicStates[2] = {VK_DYNAMIC_STATE_VIEWPORT,
+                                     VK_DYNAMIC_STATE_SCISSOR};
+
+  VkPipelineDynamicStateCreateInfo dynamicState = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+      .dynamicStateCount = 2,
+      .pDynamicStates = dynamicStates,
+  };
+
+  VkPipelineViewportStateCreateInfo viewportState = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      .viewportCount = 1,
+      .pViewports = &viewport,
+      .scissorCount = 1,
+      .pScissors = &scissor,
+  };
+
+  /* Rasterizer */
+  VkPipelineRasterizationStateCreateInfo rasterizer = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+      .depthClampEnable = VK_FALSE,
+      .rasterizerDiscardEnable = VK_FALSE,
+      .polygonMode = VK_POLYGON_MODE_FILL,
+      .lineWidth = 1.0f,
+      .cullMode = VK_CULL_MODE_BACK_BIT,
+      .frontFace = VK_FRONT_FACE_CLOCKWISE,
+      .depthBiasEnable = VK_FALSE,
+      .depthBiasConstantFactor = 0.0f,
+      .depthBiasClamp = 0.0f,
+      .depthBiasSlopeFactor = 0.0f,
+  };
+
+  /* Multisampling */
+  VkPipelineMultisampleStateCreateInfo multisampling = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+      .sampleShadingEnable = VK_FALSE,
+      .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+      .minSampleShading = 1.0f,
+      .pSampleMask = NULL,
+      .alphaToCoverageEnable = VK_FALSE,
+      .alphaToOneEnable = VK_FALSE,
+  };
+
+  /* Color blending */
+  VkPipelineColorBlendAttachmentState colorBlendAttachment = {
+      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+      .blendEnable = VK_FALSE,
+      .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+      .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+      .colorBlendOp = VK_BLEND_OP_ADD,
+      .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+      .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+      .alphaBlendOp = VK_BLEND_OP_ADD,
+  };
+
+  VkPipelineLayout pipelineLayout;
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .setLayoutCount = 0,
+      .pSetLayouts = NULL,
+      .pushConstantRangeCount = 0,
+      .pPushConstantRanges = NULL,
+  };
+
+  if (vkCreatePipelineLayout(vulkanLogicalDevice, &pipelineLayoutInfo, NULL,
+                             &pipelineLayout) != VK_SUCCESS)
+    PANIC(1, "Failed to create pipeline")
+
+  /* Render pass */
+  VkAttachmentDescription colorAttachment = {
+      .format = surfaceFormat.format,
+      .samples = VK_SAMPLE_COUNT_1_BIT,
+      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+      .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+      .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+      .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+  };
+
+  VkPipelineColorBlendStateCreateInfo colorBlending = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+      .logicOpEnable = VK_FALSE,
+      .logicOp = VK_LOGIC_OP_COPY,
+      .attachmentCount = 1,
+      .pAttachments = &colorBlendAttachment,
+      .blendConstants[0] = 0.0f,
+      .blendConstants[1] = 0.0f,
+      .blendConstants[2] = 0.0f,
+      .blendConstants[3] = 0.0f,
+  };
+
+  VkAttachmentReference colorAttachmentRef = {
+      .attachment = 0,
+      .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+  };
+
+  VkSubpassDescription subpass = {
+      .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+      .colorAttachmentCount = 1,
+      .pColorAttachments = &colorAttachmentRef,
+  };
+
+  /* Create render pass */
+  VkRenderPassCreateInfo renderPassInfo = {
+      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+      .attachmentCount = 1,
+      .pAttachments = &colorAttachment,
+      .subpassCount = 1,
+      .pSubpasses = &subpass,
+  };
+
+  VkRenderPass renderPass;
+  if (vkCreateRenderPass(vulkanLogicalDevice, &renderPassInfo, NULL,
+                         &renderPass) != VK_SUCCESS)
+    PANIC(1, "Failed to create render pass")
+
+  VkGraphicsPipelineCreateInfo pipelineInfo = {
+      .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+      .stageCount = 2,
+      .pStages = shaderStages,
+      .pVertexInputState = &vertexInputInfo,
+      .pInputAssemblyState = &inputAssembly,
+      .pViewportState = &viewportState,
+      .pRasterizationState = &rasterizer,
+      .pMultisampleState = &multisampling,
+      .pDepthStencilState = NULL,
+      .pColorBlendState = &colorBlending,
+      .pDynamicState = &dynamicState,
+      .layout = pipelineLayout,
+      .renderPass = renderPass,
+      .subpass = 0,
+      .basePipelineHandle = VK_NULL_HANDLE,
+      .basePipelineIndex = -1,
+  };
+
+  INFO("Starting cleanup")
+  vkDestroyPipelineLayout(vulkanLogicalDevice, pipelineLayout, NULL);
+  vkDestroyRenderPass(vulkanLogicalDevice, renderPass, NULL);
+  vkDestroyPipelineLayout(vulkanLogicalDevice, pipelineLayout, NULL);
+  vkDestroyShaderModule(vulkanLogicalDevice, vertexShaderModule, NULL);
+  vkDestroyShaderModule(vulkanLogicalDevice, fragmentShaderModule, NULL);
+  for (size_t i = 0; i < imageCount; i++)
+    vkDestroyImageView(vulkanLogicalDevice, swapChainImageViews[i], NULL);
+  vkDestroySwapchainKHR(vulkanLogicalDevice, swapChain, NULL);
+  vkDestroyDevice(vulkanLogicalDevice, NULL);
+  vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
+  vkDestroyInstance(vulkanInstance, NULL);
+  glfwDestroyWindow(GLFWWindow);
+  glfwTerminate();
+  INFO("Cleanup complete")
 
   return EXIT_SUCCESS;
 }
