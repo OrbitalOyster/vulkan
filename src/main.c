@@ -1,3 +1,4 @@
+#include <stdint.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
@@ -348,7 +349,7 @@ int main(void) {
   VkExtent2D swapchainExtent =
       extent_suitable ? surfaceCapabilities.currentExtent : actualExtent;
 
-  /* Create swap chain */
+  /* Create swapchain */
   uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
   if (surfaceCapabilities.maxImageCount > 0 &&
       imageCount > surfaceCapabilities.maxImageCount)
@@ -636,10 +637,40 @@ int main(void) {
       .basePipelineIndex = -1,
   };
 
+  /* Actual pipeline */
+  VkPipeline graphicsPipeline;
+  if (vkCreateGraphicsPipelines(vulkanLogicalDevice, VK_NULL_HANDLE, 1,
+                                &pipelineInfo, NULL,
+                                &graphicsPipeline) != VK_SUCCESS)
+    PANIC(1, "Failed to create graphics pipeline")
+
+  /* Framebuffers */
+  VkFramebuffer *swapChainFramebuffers =
+      calloc(sizeof(VkFramebuffer), imageCount);
+  for (size_t i = 0; i < imageCount; i++) {
+    VkImageView attachments[] = {swapChainImageViews[i]};
+
+    VkFramebufferCreateInfo framebufferInfo = {
+        .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+        .renderPass = renderPass,
+        .attachmentCount = 1,
+        .pAttachments = attachments,
+        .width = swapchainExtent.width,
+        .height = swapchainExtent.height,
+        .layers = 1,
+    };
+
+    if (vkCreateFramebuffer(vulkanLogicalDevice, &framebufferInfo, NULL,
+                            &swapChainFramebuffers[i]) != VK_SUCCESS)
+      PANIC(1, "Failed to create framebuffer")
+  }
+
   INFO("Starting cleanup")
+  for (uint32_t i = 0; i < imageCount; i++)
+      vkDestroyFramebuffer(vulkanLogicalDevice, swapChainFramebuffers[i], NULL);
+  vkDestroyPipeline(vulkanLogicalDevice, graphicsPipeline, NULL);
   vkDestroyPipelineLayout(vulkanLogicalDevice, pipelineLayout, NULL);
   vkDestroyRenderPass(vulkanLogicalDevice, renderPass, NULL);
-  vkDestroyPipelineLayout(vulkanLogicalDevice, pipelineLayout, NULL);
   vkDestroyShaderModule(vulkanLogicalDevice, vertexShaderModule, NULL);
   vkDestroyShaderModule(vulkanLogicalDevice, fragmentShaderModule, NULL);
   for (size_t i = 0; i < imageCount; i++)
