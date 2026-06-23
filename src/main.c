@@ -320,14 +320,19 @@ int main(void) {
   bool extent_suitable = true;
   int windowWidth, windowHeight;
   glfwGetFramebufferSize(GLFWWindow, &windowWidth, &windowHeight);
+  INFOF("GLFW framebuffer size: %u %u", windowWidth, windowHeight)
   VkExtent2D actualExtent = {
       .width = windowWidth,
       .height = windowHeight,
   };
   actualExtent.width = windowWidth;
   actualExtent.height = windowHeight;
+  INFOF("Surface capabilities: %u %u", surfaceCapabilities.currentExtent.width,
+        surfaceCapabilities.currentExtent.height)
+  /* TODO: Wayland will return 0xFFFFFFFF on both */
   if (surfaceCapabilities.currentExtent.width != (uint32_t)windowWidth ||
       surfaceCapabilities.currentExtent.height != (uint32_t)windowHeight) {
+    INFO("Resizing swapchain extent")
     extent_suitable = false;
     actualExtent.width =
         (uint32_t)windowWidth > surfaceCapabilities.maxImageExtent.width
@@ -348,6 +353,9 @@ int main(void) {
   }
   VkExtent2D swapchainExtent =
       extent_suitable ? surfaceCapabilities.currentExtent : actualExtent;
+
+  INFOF("Swapchain extent: %ux%u", swapchainExtent.width,
+        swapchainExtent.height)
 
   /* Create swapchain */
   uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
@@ -405,7 +413,9 @@ int main(void) {
         .subresourceRange.layerCount = 1,
     };
     if (vkCreateImageView(vulkanLogicalDevice, &createImageViewInfo, NULL,
-                          &swapChainImageViews[i]) != VK_SUCCESS)
+                          &swapChainImageViews[i]) == VK_SUCCESS) {
+      INFO("Created image view")
+    } else
       PANIC(1, "Failed to create image view")
   }
 
@@ -413,9 +423,10 @@ int main(void) {
   FILE *vertexShaderFile = NULL, *fragmentShaderFile = NULL;
   vertexShaderFile = fopen("shaders/vert.spv", "rb+");
   fragmentShaderFile = fopen("shaders/frag.spv", "rb+");
-  if (vertexShaderFile == NULL || fragmentShaderFile == NULL) {
+  if (vertexShaderFile != NULL && fragmentShaderFile != NULL) {
+    INFO("Loaded shaders code")
+  } else
     PANIC(1, "Unable to load shaders")
-  }
   fseek(vertexShaderFile, 0, SEEK_END);
   fseek(fragmentShaderFile, 0, SEEK_END);
   uint32_t vertexShaderFileSize = ftell(vertexShaderFile);
@@ -440,7 +451,9 @@ int main(void) {
   };
   VkShaderModule vertexShaderModule;
   if (vkCreateShaderModule(vulkanLogicalDevice, &createVertexShaderInfo, NULL,
-                           &vertexShaderModule) != VK_SUCCESS)
+                           &vertexShaderModule) == VK_SUCCESS) {
+    INFO("Created vertex shader module")
+  } else
     PANIC(1, "Failed to create vertex shader module")
   VkShaderModuleCreateInfo createFragmentShaderInfo = {
       .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -449,7 +462,10 @@ int main(void) {
   };
   VkShaderModule fragmentShaderModule;
   if (vkCreateShaderModule(vulkanLogicalDevice, &createFragmentShaderInfo, NULL,
-                           &fragmentShaderModule) != VK_SUCCESS)
+                           &fragmentShaderModule) == VK_SUCCESS) {
+
+    INFO("Created fragment shader module")
+  } else
     PANIC(1, "Failed to create fragment shader module")
 
   /* Shader staging */
@@ -566,8 +582,10 @@ int main(void) {
   };
 
   if (vkCreatePipelineLayout(vulkanLogicalDevice, &pipelineLayoutInfo, NULL,
-                             &pipelineLayout) != VK_SUCCESS)
-    PANIC(1, "Failed to create pipeline")
+                             &pipelineLayout) == VK_SUCCESS) {
+    INFO("Created pipeline layout")
+  } else
+    PANIC(1, "Failed to create pipeline layout")
 
   /* Render pass */
   VkAttachmentDescription colorAttachment = {
@@ -615,7 +633,9 @@ int main(void) {
 
   VkRenderPass renderPass;
   if (vkCreateRenderPass(vulkanLogicalDevice, &renderPassInfo, NULL,
-                         &renderPass) != VK_SUCCESS)
+                         &renderPass) == VK_SUCCESS) {
+    INFO("Created render pass")
+  } else
     PANIC(1, "Failed to create render pass")
 
   VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
@@ -641,7 +661,9 @@ int main(void) {
   VkPipeline graphicsPipeline;
   if (vkCreateGraphicsPipelines(vulkanLogicalDevice, VK_NULL_HANDLE, 1,
                                 &pipelineCreateInfo, NULL,
-                                &graphicsPipeline) != VK_SUCCESS)
+                                &graphicsPipeline) == VK_SUCCESS) {
+    INFO("Created pipeline")
+  } else
     PANIC(1, "Failed to create graphics pipeline")
 
   /* Framebuffers */
@@ -674,8 +696,10 @@ int main(void) {
       .queueFamilyIndex = selectedQueueFamilyIndex,
   };
 
-  if (vkCreateCommandPool(vulkanLogicalDevice, &poolInfo, NULL, &commandPool) !=
-      VK_SUCCESS)
+  if (vkCreateCommandPool(vulkanLogicalDevice, &poolInfo, NULL, &commandPool) ==
+      VK_SUCCESS) {
+    INFO("Created command pool")
+  } else
     PANIC(1, "Unable to create command pool")
 
   /* Command buffer */
@@ -689,7 +713,9 @@ int main(void) {
       .commandBufferCount = 1,
   };
   if (vkAllocateCommandBuffers(vulkanLogicalDevice, &allocInfo,
-                               &commandBuffer) != VK_SUCCESS)
+                               &commandBuffer) == VK_SUCCESS) {
+    INFO("Allocated command buffers")
+  } else
     PANIC(1, "Unable to allocate command buffers");
 
   /* Begin */
@@ -698,8 +724,10 @@ int main(void) {
       .flags = 0,
       .pInheritanceInfo = NULL,
   };
-  if (vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) !=
-      VK_SUCCESS)
+  if (vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) ==
+      VK_SUCCESS) {
+    INFO("Command buffer start")
+  } else
     PANIC(1, "Unable to start recording command buffer")
 
   VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
@@ -717,7 +745,8 @@ int main(void) {
       .clearValueCount = 1,
       .pClearValues = &clearColor,
   };
-  vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+  vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo,
+                       VK_SUBPASS_CONTENTS_INLINE);
   // -------------------------------
 
   INFO("Starting cleanup")
