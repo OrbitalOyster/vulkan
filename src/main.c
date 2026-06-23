@@ -504,8 +504,8 @@ int main(void) {
   VkViewport viewport = {
       .x = 0.0f,
       .y = 0.0f,
-      .width = (float)swapchainExtent.width,
-      .height = (float)swapchainExtent.height,
+      .width = swapchainExtent.width,
+      .height = swapchainExtent.height,
       .minDepth = 0.0f,
       .maxDepth = 1.0f,
   };
@@ -748,6 +748,22 @@ int main(void) {
   vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo,
                        VK_SUBPASS_CONTENTS_INLINE);
   // -------------------------------
+
+  vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    graphicsPipeline);
+  vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+  vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+  vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+  vkCmdEndRenderPass(commandBuffer);
+  if (vkEndCommandBuffer(commandBuffer) == VK_SUCCESS) {
+    INFO("Command buffer end")
+  } else {
+    PANIC(1, "Failed to record command buffer")
+  }
+
+  while (!glfwWindowShouldClose(GLFWWindow)) {
+    glfwPollEvents();
+  }
 
   INFO("Starting cleanup")
   for (uint32_t i = 0; i < imageCount; i++)
