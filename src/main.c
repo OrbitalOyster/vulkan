@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -622,6 +623,16 @@ int main(void) {
       .pColorAttachments = &colorAttachmentRef,
   };
 
+  /* Render pass dependency */
+  VkSubpassDependency dependency = {
+      .srcSubpass = VK_SUBPASS_EXTERNAL,
+      .dstSubpass = 0,
+      .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      .srcAccessMask = 0,
+      .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+  };
+
   /* Create render pass */
   VkRenderPassCreateInfo renderPassInfo = {
       .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -629,6 +640,8 @@ int main(void) {
       .pAttachments = &colorAttachment,
       .subpassCount = 1,
       .pSubpasses = &subpass,
+      .dependencyCount = 1,
+      .pDependencies = &dependency,
   };
 
   VkRenderPass renderPass;
@@ -718,54 +731,121 @@ int main(void) {
   } else
     PANIC(1, "Unable to allocate command buffers");
 
-  /* Begin */
-  VkCommandBufferBeginInfo commandBufferBeginInfo = {
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-      .flags = 0,
-      .pInheritanceInfo = NULL,
-  };
-  if (vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) ==
-      VK_SUCCESS) {
-    INFO("Command buffer start")
-  } else
-    PANIC(1, "Unable to start recording command buffer")
-
   VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
 
-  // void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t
-  // imageIndex)
-  // -------------------------------
-
-  VkRenderPassBeginInfo renderPassBeginInfo = {
-      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-      .renderPass = renderPass,
-      .framebuffer = swapChainFramebuffers[/*imageIndex*/ 0],
-      .renderArea.offset = {0, 0},
-      .renderArea.extent = swapchainExtent,
-      .clearValueCount = 1,
-      .pClearValues = &clearColor,
+  /* Semaphores */
+  VkSemaphoreCreateInfo semaphoreInfo = {
+      .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
   };
-  vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo,
-                       VK_SUBPASS_CONTENTS_INLINE);
-  // -------------------------------
+  VkFenceCreateInfo fenceInfo = {
+      .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+      .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+  };
 
-  vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    graphicsPipeline);
-  vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-  vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-  vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-  vkCmdEndRenderPass(commandBuffer);
-  if (vkEndCommandBuffer(commandBuffer) == VK_SUCCESS) {
-    INFO("Command buffer end")
-  } else {
-    PANIC(1, "Failed to record command buffer")
-  }
+  VkSemaphore imageAvailableSemaphore;
+  VkSemaphore renderFinishedSemaphore;
+  VkFence inFlightFence;
+
+  if (vkCreateSemaphore(vulkanLogicalDevice, &semaphoreInfo, NULL,
+                        &imageAvailableSemaphore) == VK_SUCCESS &&
+      vkCreateSemaphore(vulkanLogicalDevice, &semaphoreInfo, NULL,
+                        &renderFinishedSemaphore) == VK_SUCCESS &&
+      vkCreateFence(vulkanLogicalDevice, &fenceInfo, NULL, &inFlightFence) ==
+          VK_SUCCESS) {
+    INFO("Created semaphores")
+  } else
+    PANIC(1, "Failed to create semaphores")
 
   while (!glfwWindowShouldClose(GLFWWindow)) {
     glfwPollEvents();
+
+    /* Draw frame */
+    vkWaitForFences(vulkanLogicalDevice, 1, &inFlightFence, VK_TRUE,
+                    UINT64_MAX);
+    vkResetFences(vulkanLogicalDevice, 1, &inFlightFence);
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(vulkanLogicalDevice, swapChain, UINT64_MAX,
+                          imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    vkResetCommandBuffer(commandBuffer, 0);
+
+    // recordCommandBuffer
+
+    VkCommandBufferBeginInfo commandBufferBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = 0,
+        .pInheritanceInfo = NULL,
+    };
+    if (vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) ==
+        VK_SUCCESS) {
+      // INFO("Command buffer start")
+    } else
+      PANIC(1, "Unable to start recording command buffer")
+
+    VkRenderPassBeginInfo renderPassBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = renderPass,
+        .framebuffer = swapChainFramebuffers[imageIndex],
+        .renderArea.offset = {0, 0},
+        .renderArea.extent = swapchainExtent,
+        .clearValueCount = 1,
+        .pClearValues = &clearColor,
+    };
+    vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo,
+                         VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphicsPipeline);
+    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    vkCmdEndRenderPass(commandBuffer);
+    if (vkEndCommandBuffer(commandBuffer) == VK_SUCCESS) {
+      // INFO("Command buffer end")
+    } else {
+      PANIC(1, "Failed to record command buffer")
+    }
+    // ----------------------------------------------
+
+    /* Submit command buffer */
+    VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
+    VkPipelineStageFlags waitStages[] = {
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+    VkSubmitInfo submitInfo = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = waitSemaphores,
+        .pWaitDstStageMask = waitStages,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &commandBuffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = signalSemaphores,
+    };
+    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) !=
+        VK_SUCCESS)
+      PANIC(1, "Failed to submit draw command buffer")
+
+    /* Present */
+    VkSwapchainKHR swapChains[] = {swapChain};
+    VkPresentInfoKHR presentInfo = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = signalSemaphores,
+        .swapchainCount = 1,
+        .pSwapchains = swapChains,
+        .pImageIndices = &imageIndex,
+        .pResults = NULL,
+    };
+    /* Ta-da */
+    vkQueuePresentKHR(presentQueue, &presentInfo);
   }
 
+  vkDeviceWaitIdle(vulkanLogicalDevice);
+
   INFO("Starting cleanup")
+  vkDestroySemaphore(vulkanLogicalDevice, imageAvailableSemaphore, NULL);
+  vkDestroySemaphore(vulkanLogicalDevice, renderFinishedSemaphore, NULL);
+  vkDestroyCommandPool(vulkanLogicalDevice, commandPool, NULL);
+  vkDestroyFence(vulkanLogicalDevice, inFlightFence, NULL);
   for (uint32_t i = 0; i < imageCount; i++)
     vkDestroyFramebuffer(vulkanLogicalDevice, swapChainFramebuffers[i], NULL);
   vkDestroyPipeline(vulkanLogicalDevice, graphicsPipeline, NULL);
