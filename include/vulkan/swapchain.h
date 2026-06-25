@@ -1,0 +1,4 @@
+#ifndef DONGLE_VULKAN_SWAPCHAIN
+#define DONGLE_VULKAN_SWAPCHAIN
+
+#endif

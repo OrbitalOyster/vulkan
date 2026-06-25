@@ -4,6 +4,7 @@
 #include "vulkan/logical_device.h"
 #include "vulkan/physical_device.h"
 #include "vulkan/queue.h"
+#include "vulkan/surface.h"
 #include "vulkan/validation_layers.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -11,16 +12,11 @@
 #include <string.h>
 #include <vulkan/vulkan_core.h>
 
-VkSurfaceKHR vulkanSurface;
-VkSwapchainKHR swapChain;
-
 #define MAX_FRAMES_IN_FLIGHT 2
 
 int main(void) {
   init_glfw();
   INFO("Initialized GLFW")
-  GLFWwindow *glfw_window = create_window();
-  INFO("Created window")
   uint32_t glfw_extension_count = get_glfw_extension_count();
   INFOF("GLFW extensions: %i", glfw_extension_count)
   const char **glfw_extension_names =
@@ -40,51 +36,35 @@ int main(void) {
   VkDevice logical_device =
       create_logical_device(physical_device, selected_queue_family_index);
   INFO("Created logical device");
+  GLFWwindow *glfw_window = create_window();
+  INFO("Created window")
+  VkSurfaceKHR surface = create_surface(vulkan_instance, glfw_window, physical_device, selected_queue_family_index);
+  INFO("Created vulkan surface");
 
   /* Graphics queue */
   VkQueue graphicsQueue;
   vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
                    &graphicsQueue);
 
-  /* Vulkan surface */
-  if (glfwCreateWindowSurface(vulkan_instance, glfw_window, NULL,
-                              &vulkanSurface) == VK_SUCCESS) {
-    INFO("Created Vulkan surface")
-  } else
-    PANIC(1, "Unable to create Vulkan surface")
-
-  /* Verify surface support */
-  VkBool32 surfaceSupported;
-  vkGetPhysicalDeviceSurfaceSupportKHR(physical_device,
-                                       selected_queue_family_index,
-                                       vulkanSurface, &surfaceSupported);
-  /*
-   * TODO: Edge case
-   * "It's actually possible that the queue families supporting drawing commands
-   * and the ones supporting presentation do not overlap"
-   */
-  if (surfaceSupported != VK_TRUE)
-    PANIC(1, "No surface support")
-
   /* Present queue */
   VkQueue presentQueue;
   vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
                    &presentQueue);
 
-  /* Surfce capabilities */
+  /* Surface capabilities */
   VkSurfaceCapabilitiesKHR surfaceCapabilities;
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, vulkanSurface,
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
                                             &surfaceCapabilities);
 
   /* Surface formats */
   uint32_t formatCount;
-  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vulkanSurface,
+  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface,
                                        &formatCount, NULL);
   INFOF("Surface formats: %u", formatCount)
   if (formatCount == 0)
     PANIC(1, "No surface formats available")
   VkSurfaceFormatKHR *formats = calloc(sizeof(VkSurfaceFormatKHR), formatCount);
-  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vulkanSurface,
+  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface,
                                        &formatCount, formats);
 
   /* Look for VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR */
@@ -100,14 +80,14 @@ int main(void) {
 
   /* Present modes */
   uint32_t presentModeCount;
-  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vulkanSurface,
+  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface,
                                             &presentModeCount, NULL);
   INFOF("Present modes: %u", presentModeCount)
   if (presentModeCount == 0)
     PANIC(1, "No present modes available")
   VkPresentModeKHR *presentModes =
       calloc(sizeof(VkPresentModeKHR), presentModeCount);
-  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vulkanSurface,
+  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface,
                                             &presentModeCount, presentModes);
   /* Check present mode */
   VkPresentModeKHR presentMode;
@@ -117,81 +97,6 @@ int main(void) {
       INFO("Found present mode")
     }
   }
-
-  /* Swap extent */
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, vulkanSurface,
-                                            &surfaceCapabilities);
-  bool extent_suitable = true;
-  int windowWidth, windowHeight;
-  glfwGetFramebufferSize(glfw_window, &windowWidth, &windowHeight);
-  INFOF("GLFW framebuffer size: %u %u", windowWidth, windowHeight)
-  VkExtent2D actualExtent = {
-      .width = windowWidth,
-      .height = windowHeight,
-  };
-  actualExtent.width = windowWidth;
-  actualExtent.height = windowHeight;
-  INFOF("Surface capabilities: %u %u", surfaceCapabilities.currentExtent.width,
-        surfaceCapabilities.currentExtent.height)
-  /* TODO: Wayland will return 0xFFFFFFFF on both */
-  if (surfaceCapabilities.currentExtent.width != (uint32_t)windowWidth ||
-      surfaceCapabilities.currentExtent.height != (uint32_t)windowHeight) {
-    INFO("Resizing swapchain extent")
-    extent_suitable = false;
-    actualExtent.width =
-        (uint32_t)windowWidth > surfaceCapabilities.maxImageExtent.width
-            ? surfaceCapabilities.maxImageExtent.width
-            : windowWidth;
-    actualExtent.width =
-        (uint32_t)windowWidth < surfaceCapabilities.minImageExtent.width
-            ? surfaceCapabilities.minImageExtent.width
-            : windowWidth;
-    actualExtent.height =
-        (uint32_t)windowHeight > surfaceCapabilities.maxImageExtent.height
-            ? surfaceCapabilities.maxImageExtent.height
-            : windowHeight;
-    actualExtent.height =
-        (uint32_t)windowHeight < surfaceCapabilities.minImageExtent.height
-            ? surfaceCapabilities.minImageExtent.height
-            : windowHeight;
-  }
-  VkExtent2D swapchainExtent =
-      extent_suitable ? surfaceCapabilities.currentExtent : actualExtent;
-
-  INFOF("Swapchain extent: %ux%u", swapchainExtent.width,
-        swapchainExtent.height)
-
-  /* Create swapchain */
-  uint32_t minSwapchainImages = surfaceCapabilities.minImageCount;
-  INFOF("Minimum swapchain images: %u", minSwapchainImages);
-  uint32_t maxSwapchainImages = surfaceCapabilities.maxImageCount;
-  INFOF("Maximum swapchain images: %u", maxSwapchainImages);
-  uint32_t imageCount = minSwapchainImages + 1;
-  if (surfaceCapabilities.maxImageCount > 0 &&
-      imageCount > surfaceCapabilities.maxImageCount)
-    imageCount = surfaceCapabilities.maxImageCount;
-
-  VkSwapchainCreateInfoKHR createSwapchainInfo = {
-      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-      .surface = vulkanSurface,
-      .minImageCount = imageCount,
-      .imageFormat = surfaceFormat.format,
-      .imageColorSpace = surfaceFormat.colorSpace,
-      .imageExtent = swapchainExtent,
-      .imageArrayLayers = 1,
-      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      .preTransform = surfaceCapabilities.currentTransform,
-      .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-      .presentMode = presentMode,
-      .clipped = VK_TRUE,
-      .oldSwapchain = VK_NULL_HANDLE,
-  };
-
-  if (vkCreateSwapchainKHR(logical_device, &createSwapchainInfo, NULL,
-                           &swapChain) == VK_SUCCESS) {
-    INFO("Created swap chain")
-  } else
-    PANIC(1, "Unable to create swap chain")
 
   /* TODO: Manage separate queues edge case */
 
@@ -452,8 +357,8 @@ int main(void) {
   };
 
   VkRenderPass renderPass;
-  if (vkCreateRenderPass(logical_device, &renderPassInfo, NULL,
-                         &renderPass) == VK_SUCCESS) {
+  if (vkCreateRenderPass(logical_device, &renderPassInfo, NULL, &renderPass) ==
+      VK_SUCCESS) {
     INFO("Created render pass")
   } else
     PANIC(1, "Failed to create render pass")
@@ -532,8 +437,8 @@ int main(void) {
       .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
       .commandBufferCount = 1,
   };
-  if (vkAllocateCommandBuffers(logical_device, &allocInfo,
-                               &commandBuffer) == VK_SUCCESS) {
+  if (vkAllocateCommandBuffers(logical_device, &allocInfo, &commandBuffer) ==
+      VK_SUCCESS) {
     INFO("Allocated command buffers")
   } else
     PANIC(1, "Unable to allocate command buffers");
@@ -567,8 +472,7 @@ int main(void) {
     glfwPollEvents();
 
     /* Draw frame */
-    vkWaitForFences(logical_device, 1, &inFlightFence, VK_TRUE,
-                    UINT64_MAX);
+    vkWaitForFences(logical_device, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
     vkResetFences(logical_device, 1, &inFlightFence);
     uint32_t imageIndex;
     vkAcquireNextImageKHR(logical_device, swapChain, UINT64_MAX,
