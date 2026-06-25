@@ -36,30 +36,21 @@ int main(void) {
   INFO("Created Vulkan instance")
   VkPhysicalDevice physical_device = select_physical_device(vulkan_instance);
   INFO("Selected physical device");
-  uint32_t queue_family_count = get_queue_family_count(physical_device);
-  INFOF("Queue families: %u", queue_family_count)
-  uint32_t selectedQueueFamilyIndex =
-      select_queue_family(physical_device, queue_family_count);
+  uint32_t selected_queue_family_index = select_queue_family(physical_device);
 
-  /* Queue priorities */
-  // float *queuePriorities =
-  //     calloc(sizeof(float), queueCount[selectedQueueFamilyIndex]);
-  // for (uint32_t i = 0; i < queueCount[selectedQueueFamilyIndex]; i++)
-  //   queuePriorities[i] = 1.0;
-
-  float queuePriority = 1.0;
+  float queue_priority = 1.0;
   /* Queue create info */
   VkDeviceQueueCreateInfo queueCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
       .pNext = NULL,
       .flags = 0,
-      .queueFamilyIndex = selectedQueueFamilyIndex,
+      .queueFamilyIndex = selected_queue_family_index,
       .queueCount = 1,
-      .pQueuePriorities = &queuePriority,
+      .pQueuePriorities = &queue_priority,
   };
 
   /* Physical device features */
-  VkPhysicalDeviceFeatures deviceFeatures = {0};
+  //VkPhysicalDeviceFeatures deviceFeatures = {0};
 
   /* Device extensions */
   uint32_t requiredExtensionCount = 1;
@@ -104,7 +95,7 @@ int main(void) {
       .pQueueCreateInfos = &queueCreateInfo,
       .enabledLayerCount = 0,
       .ppEnabledLayerNames = NULL,
-      .pEnabledFeatures = &deviceFeatures,
+      // .pEnabledFeatures = &deviceFeatures,
       .enabledExtensionCount = requiredExtensionCount,
       .ppEnabledExtensionNames = requiredExtensionNames,
   };
@@ -117,7 +108,7 @@ int main(void) {
 
   /* Graphics queue */
   VkQueue graphicsQueue;
-  vkGetDeviceQueue(vulkanLogicalDevice, selectedQueueFamilyIndex, 0,
+  vkGetDeviceQueue(vulkanLogicalDevice, selected_queue_family_index, 0,
                    &graphicsQueue);
 
   /* Vulkan surface */
@@ -130,7 +121,7 @@ int main(void) {
   /* Verify surface support */
   VkBool32 surfaceSupported;
   vkGetPhysicalDeviceSurfaceSupportKHR(physical_device,
-                                       selectedQueueFamilyIndex, vulkanSurface,
+                                       selected_queue_family_index, vulkanSurface,
                                        &surfaceSupported);
   /*
    * TODO: Edge case
@@ -142,7 +133,7 @@ int main(void) {
 
   /* Present queue */
   VkQueue presentQueue;
-  vkGetDeviceQueue(vulkanLogicalDevice, selectedQueueFamilyIndex, 0,
+  vkGetDeviceQueue(vulkanLogicalDevice, selected_queue_family_index, 0,
                    &presentQueue);
 
   /* Surfce capabilities */
@@ -587,7 +578,7 @@ int main(void) {
   VkCommandPoolCreateInfo poolInfo = {
       .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
       .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-      .queueFamilyIndex = selectedQueueFamilyIndex,
+      .queueFamilyIndex = selected_queue_family_index,
   };
 
   if (vkCreateCommandPool(vulkanLogicalDevice, &poolInfo, NULL, &commandPool) ==
