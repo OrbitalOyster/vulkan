@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
@@ -15,6 +16,7 @@ VkSurfaceKHR vulkanSurface;
 VkSwapchainKHR swapChain;
 
 #define VALIDATION_LAYERS_COUNT 1
+#define MAX_FRAMES_IN_FLIGHT 2
 
 int main(void) {
   /* Init GLFW */
@@ -359,7 +361,11 @@ int main(void) {
         swapchainExtent.height)
 
   /* Create swapchain */
-  uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+  uint32_t minSwapchainImages = surfaceCapabilities.minImageCount;
+  INFOF("Minimum swapchain images: %u", minSwapchainImages);
+  uint32_t maxSwapchainImages = surfaceCapabilities.maxImageCount;
+  INFOF("Maximum swapchain images: %u", maxSwapchainImages);
+  uint32_t imageCount = minSwapchainImages + 1;
   if (surfaceCapabilities.maxImageCount > 0 &&
       imageCount > surfaceCapabilities.maxImageCount)
     imageCount = surfaceCapabilities.maxImageCount;
@@ -415,7 +421,7 @@ int main(void) {
     };
     if (vkCreateImageView(vulkanLogicalDevice, &createImageViewInfo, NULL,
                           &swapChainImageViews[i]) == VK_SUCCESS) {
-      INFO("Created image view")
+      INFOF("Created image view #%u", i)
     } else
       PANIC(1, "Failed to create image view")
   }
