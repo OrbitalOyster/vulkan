@@ -31,9 +31,6 @@ VkInstance create_vulkan_instance(uint32_t glfw_extension_count,
       calloc(sizeof(VkExtensionProperties), vulkan_extension_count);
   vkEnumerateInstanceExtensionProperties(
       VK_NULL_HANDLE, &vulkan_extension_count, vulkan_extension_properties);
-  // for (uint32_t i = 0; i < vulkan_extension_count; i++)
-  //   INFOF("\t%s", vulkan_extension_properties[i].extensionName)
-  /* Create vulkan instance */
   VkInstance instance = VK_NULL_HANDLE;
   if (vkCreateInstance(&create_info, VK_NULL_HANDLE, &instance) != VK_SUCCESS)
     PANIC(1, "Unable to create Vulkan instance")

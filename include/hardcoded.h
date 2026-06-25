@@ -11,4 +11,7 @@
 /* Validation layers */
 #define VALIDATION_LAYER_COUNT 1
 
+/* Device extensions */
+#define REQUIRED_DEVICE_EXTENSION_COUNT 1
+
 #endif

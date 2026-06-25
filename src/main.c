@@ -1,6 +1,7 @@
 #include "debug.h"
 #include "glfw.h"
 #include "vulkan/instance.h"
+#include "vulkan/logical_device.h"
 #include "vulkan/physical_device.h"
 #include "vulkan/queue.h"
 #include "vulkan/validation_layers.h"
@@ -10,7 +11,6 @@
 #include <string.h>
 #include <vulkan/vulkan_core.h>
 
-VkDevice vulkanLogicalDevice;
 VkSurfaceKHR vulkanSurface;
 VkSwapchainKHR swapChain;
 
@@ -37,78 +37,13 @@ int main(void) {
   VkPhysicalDevice physical_device = select_physical_device(vulkan_instance);
   INFO("Selected physical device");
   uint32_t selected_queue_family_index = select_queue_family(physical_device);
-
-  float queue_priority = 1.0;
-  /* Queue create info */
-  VkDeviceQueueCreateInfo queueCreateInfo = {
-      .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-      .pNext = NULL,
-      .flags = 0,
-      .queueFamilyIndex = selected_queue_family_index,
-      .queueCount = 1,
-      .pQueuePriorities = &queue_priority,
-  };
-
-  /* Physical device features */
-  //VkPhysicalDeviceFeatures deviceFeatures = {0};
-
-  /* Device extensions */
-  uint32_t requiredExtensionCount = 1;
-  char tmp[requiredExtensionCount][VK_MAX_EXTENSION_NAME_SIZE];
-  strcpy(tmp[0], VK_KHR_SWAPCHAIN_EXTENSION_NAME); // Add extension names here
-  // strcpy(tmp[1], "bogus_extension");
-  const char *requiredExtensionNames[requiredExtensionCount];
-  for (uint32_t i = 0; i < requiredExtensionCount; i++) {
-    requiredExtensionNames[i] = tmp[i];
-    INFOF("Required extension: %s", requiredExtensionNames[i]);
-  }
-
-  /* Check device extension support */
-  uint32_t availableExtentionsCount;
-  vkEnumerateDeviceExtensionProperties(physical_device, NULL,
-                                       &availableExtentionsCount, NULL);
-  INFOF("Available extensions: %u", availableExtentionsCount)
-  VkExtensionProperties *availableExtensions =
-      calloc(sizeof(VkExtensionProperties), availableExtentionsCount);
-  vkEnumerateDeviceExtensionProperties(
-      physical_device, NULL, &availableExtentionsCount, availableExtensions);
-
-  for (uint32_t j = 0; j < requiredExtensionCount; j++) {
-    bool extensionSupported = false;
-    for (uint32_t i = 0; i < availableExtentionsCount; i++) {
-      if (strcmp(requiredExtensionNames[j],
-                 availableExtensions[i].extensionName) == 0) {
-        extensionSupported = true;
-        break;
-      }
-    }
-    if (!extensionSupported)
-      PANICF(1, "Extension %s not supported", requiredExtensionNames[j])
-  }
-
-  /* Logical device */
-  VkDeviceCreateInfo createLogicalDeviceInfo = {
-      .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-      .pNext = NULL,
-      .flags = 0,
-      .queueCreateInfoCount = 1,
-      .pQueueCreateInfos = &queueCreateInfo,
-      .enabledLayerCount = 0,
-      .ppEnabledLayerNames = NULL,
-      // .pEnabledFeatures = &deviceFeatures,
-      .enabledExtensionCount = requiredExtensionCount,
-      .ppEnabledExtensionNames = requiredExtensionNames,
-  };
-
-  if (vkCreateDevice(physical_device, &createLogicalDeviceInfo, NULL,
-                     &vulkanLogicalDevice) == VK_SUCCESS) {
-    INFO("Created Vulkan logical device")
-  } else
-    PANIC(1, "Unable to create Vulkan logical device")
+  VkDevice logical_device =
+      create_logical_device(physical_device, selected_queue_family_index);
+  INFO("Created logical device");
 
   /* Graphics queue */
   VkQueue graphicsQueue;
-  vkGetDeviceQueue(vulkanLogicalDevice, selected_queue_family_index, 0,
+  vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
                    &graphicsQueue);
 
   /* Vulkan surface */
@@ -121,8 +56,8 @@ int main(void) {
   /* Verify surface support */
   VkBool32 surfaceSupported;
   vkGetPhysicalDeviceSurfaceSupportKHR(physical_device,
-                                       selected_queue_family_index, vulkanSurface,
-                                       &surfaceSupported);
+                                       selected_queue_family_index,
+                                       vulkanSurface, &surfaceSupported);
   /*
    * TODO: Edge case
    * "It's actually possible that the queue families supporting drawing commands
@@ -133,7 +68,7 @@ int main(void) {
 
   /* Present queue */
   VkQueue presentQueue;
-  vkGetDeviceQueue(vulkanLogicalDevice, selected_queue_family_index, 0,
+  vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
                    &presentQueue);
 
   /* Surfce capabilities */
@@ -252,7 +187,7 @@ int main(void) {
       .oldSwapchain = VK_NULL_HANDLE,
   };
 
-  if (vkCreateSwapchainKHR(vulkanLogicalDevice, &createSwapchainInfo, NULL,
+  if (vkCreateSwapchainKHR(logical_device, &createSwapchainInfo, NULL,
                            &swapChain) == VK_SUCCESS) {
     INFO("Created swap chain")
   } else
@@ -262,9 +197,9 @@ int main(void) {
 
   /* Swap chain images */
   VkImage *swapChainImages;
-  vkGetSwapchainImagesKHR(vulkanLogicalDevice, swapChain, &imageCount, NULL);
+  vkGetSwapchainImagesKHR(logical_device, swapChain, &imageCount, NULL);
   swapChainImages = calloc(sizeof(VkImage), imageCount);
-  vkGetSwapchainImagesKHR(vulkanLogicalDevice, swapChain, &imageCount,
+  vkGetSwapchainImagesKHR(logical_device, swapChain, &imageCount,
                           swapChainImages);
 
   /* Swap chain image views */
@@ -285,7 +220,7 @@ int main(void) {
         .subresourceRange.baseArrayLayer = 0,
         .subresourceRange.layerCount = 1,
     };
-    if (vkCreateImageView(vulkanLogicalDevice, &createImageViewInfo, NULL,
+    if (vkCreateImageView(logical_device, &createImageViewInfo, NULL,
                           &swapChainImageViews[i]) == VK_SUCCESS) {
       INFOF("Created image view #%u", i)
     } else
@@ -323,7 +258,7 @@ int main(void) {
       .pCode = (const uint32_t *)vertexShaderCode,
   };
   VkShaderModule vertexShaderModule;
-  if (vkCreateShaderModule(vulkanLogicalDevice, &createVertexShaderInfo, NULL,
+  if (vkCreateShaderModule(logical_device, &createVertexShaderInfo, NULL,
                            &vertexShaderModule) == VK_SUCCESS) {
     INFO("Created vertex shader module")
   } else
@@ -334,7 +269,7 @@ int main(void) {
       .pCode = (const uint32_t *)fragmentShaderCode,
   };
   VkShaderModule fragmentShaderModule;
-  if (vkCreateShaderModule(vulkanLogicalDevice, &createFragmentShaderInfo, NULL,
+  if (vkCreateShaderModule(logical_device, &createFragmentShaderInfo, NULL,
                            &fragmentShaderModule) == VK_SUCCESS) {
 
     INFO("Created fragment shader module")
@@ -454,7 +389,7 @@ int main(void) {
       .pPushConstantRanges = NULL,
   };
 
-  if (vkCreatePipelineLayout(vulkanLogicalDevice, &pipelineLayoutInfo, NULL,
+  if (vkCreatePipelineLayout(logical_device, &pipelineLayoutInfo, NULL,
                              &pipelineLayout) == VK_SUCCESS) {
     INFO("Created pipeline layout")
   } else
@@ -517,7 +452,7 @@ int main(void) {
   };
 
   VkRenderPass renderPass;
-  if (vkCreateRenderPass(vulkanLogicalDevice, &renderPassInfo, NULL,
+  if (vkCreateRenderPass(logical_device, &renderPassInfo, NULL,
                          &renderPass) == VK_SUCCESS) {
     INFO("Created render pass")
   } else
@@ -544,7 +479,7 @@ int main(void) {
 
   /* Actual pipeline */
   VkPipeline graphicsPipeline;
-  if (vkCreateGraphicsPipelines(vulkanLogicalDevice, VK_NULL_HANDLE, 1,
+  if (vkCreateGraphicsPipelines(logical_device, VK_NULL_HANDLE, 1,
                                 &pipelineCreateInfo, NULL,
                                 &graphicsPipeline) == VK_SUCCESS) {
     INFO("Created pipeline")
@@ -567,7 +502,7 @@ int main(void) {
         .layers = 1,
     };
 
-    if (vkCreateFramebuffer(vulkanLogicalDevice, &framebufferCreateInfo, NULL,
+    if (vkCreateFramebuffer(logical_device, &framebufferCreateInfo, NULL,
                             &swapChainFramebuffers[i]) != VK_SUCCESS)
       PANIC(1, "Failed to create framebuffer")
   }
@@ -581,7 +516,7 @@ int main(void) {
       .queueFamilyIndex = selected_queue_family_index,
   };
 
-  if (vkCreateCommandPool(vulkanLogicalDevice, &poolInfo, NULL, &commandPool) ==
+  if (vkCreateCommandPool(logical_device, &poolInfo, NULL, &commandPool) ==
       VK_SUCCESS) {
     INFO("Created command pool")
   } else
@@ -597,7 +532,7 @@ int main(void) {
       .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
       .commandBufferCount = 1,
   };
-  if (vkAllocateCommandBuffers(vulkanLogicalDevice, &allocInfo,
+  if (vkAllocateCommandBuffers(logical_device, &allocInfo,
                                &commandBuffer) == VK_SUCCESS) {
     INFO("Allocated command buffers")
   } else
@@ -618,11 +553,11 @@ int main(void) {
   VkSemaphore renderFinishedSemaphore;
   VkFence inFlightFence;
 
-  if (vkCreateSemaphore(vulkanLogicalDevice, &semaphoreInfo, NULL,
+  if (vkCreateSemaphore(logical_device, &semaphoreInfo, NULL,
                         &imageAvailableSemaphore) == VK_SUCCESS &&
-      vkCreateSemaphore(vulkanLogicalDevice, &semaphoreInfo, NULL,
+      vkCreateSemaphore(logical_device, &semaphoreInfo, NULL,
                         &renderFinishedSemaphore) == VK_SUCCESS &&
-      vkCreateFence(vulkanLogicalDevice, &fenceInfo, NULL, &inFlightFence) ==
+      vkCreateFence(logical_device, &fenceInfo, NULL, &inFlightFence) ==
           VK_SUCCESS) {
     INFO("Created semaphores")
   } else
@@ -632,11 +567,11 @@ int main(void) {
     glfwPollEvents();
 
     /* Draw frame */
-    vkWaitForFences(vulkanLogicalDevice, 1, &inFlightFence, VK_TRUE,
+    vkWaitForFences(logical_device, 1, &inFlightFence, VK_TRUE,
                     UINT64_MAX);
-    vkResetFences(vulkanLogicalDevice, 1, &inFlightFence);
+    vkResetFences(logical_device, 1, &inFlightFence);
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(vulkanLogicalDevice, swapChain, UINT64_MAX,
+    vkAcquireNextImageKHR(logical_device, swapChain, UINT64_MAX,
                           imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
     vkResetCommandBuffer(commandBuffer, 0);
 
@@ -711,24 +646,24 @@ int main(void) {
     vkQueuePresentKHR(presentQueue, &presentInfo);
   }
 
-  vkDeviceWaitIdle(vulkanLogicalDevice);
+  vkDeviceWaitIdle(logical_device);
 
   INFO("Starting cleanup")
-  vkDestroySemaphore(vulkanLogicalDevice, imageAvailableSemaphore, NULL);
-  vkDestroySemaphore(vulkanLogicalDevice, renderFinishedSemaphore, NULL);
-  vkDestroyCommandPool(vulkanLogicalDevice, commandPool, NULL);
-  vkDestroyFence(vulkanLogicalDevice, inFlightFence, NULL);
+  vkDestroySemaphore(logical_device, imageAvailableSemaphore, NULL);
+  vkDestroySemaphore(logical_device, renderFinishedSemaphore, NULL);
+  vkDestroyCommandPool(logical_device, commandPool, NULL);
+  vkDestroyFence(logical_device, inFlightFence, NULL);
   for (uint32_t i = 0; i < imageCount; i++)
-    vkDestroyFramebuffer(vulkanLogicalDevice, swapChainFramebuffers[i], NULL);
-  vkDestroyPipeline(vulkanLogicalDevice, graphicsPipeline, NULL);
-  vkDestroyPipelineLayout(vulkanLogicalDevice, pipelineLayout, NULL);
-  vkDestroyRenderPass(vulkanLogicalDevice, renderPass, NULL);
-  vkDestroyShaderModule(vulkanLogicalDevice, vertexShaderModule, NULL);
-  vkDestroyShaderModule(vulkanLogicalDevice, fragmentShaderModule, NULL);
+    vkDestroyFramebuffer(logical_device, swapChainFramebuffers[i], NULL);
+  vkDestroyPipeline(logical_device, graphicsPipeline, NULL);
+  vkDestroyPipelineLayout(logical_device, pipelineLayout, NULL);
+  vkDestroyRenderPass(logical_device, renderPass, NULL);
+  vkDestroyShaderModule(logical_device, vertexShaderModule, NULL);
+  vkDestroyShaderModule(logical_device, fragmentShaderModule, NULL);
   for (size_t i = 0; i < imageCount; i++)
-    vkDestroyImageView(vulkanLogicalDevice, swapChainImageViews[i], NULL);
-  vkDestroySwapchainKHR(vulkanLogicalDevice, swapChain, NULL);
-  vkDestroyDevice(vulkanLogicalDevice, NULL);
+    vkDestroyImageView(logical_device, swapChainImageViews[i], NULL);
+  vkDestroySwapchainKHR(logical_device, swapChain, NULL);
+  vkDestroyDevice(logical_device, NULL);
   // vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
   INFO("Cleanup complete")
 
