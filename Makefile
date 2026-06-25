@@ -7,7 +7,7 @@ OBJ_DIR := obj
 BIN_DIR := bin
 
 # Executable name
-EXE := vulkan
+EXE := dongle
 
 # Actual language
 CC := clang
@@ -27,8 +27,8 @@ CFLAGS := $(STANDART) $(OPTIMIZATION) $(WARNINGS) $(DFLAGS) $(DEBUG) -I $(INCLUD
 LDLIBS := -lglfw -lvulkan -lGL
 
 # All source subdirectories
-SRC_SDIRS := $(SRC_DIR)/$(wildcard $(SRC_DIR)/*/) $(wildcard $(SRC_DIR)/**/*/)
-INCLUDE_SDIRS := $(INCLUDE_DIR)/$(wildcard $(INCLUDE_DIR)/*/) $(wildcard $(INCLUDE_DIR)/**/*/)
+SRC_SDIRS := $(SRC_DIR)/ $(wildcard $(SRC_DIR)/*/) $(wildcard $(SRC_DIR)/**/*/)
+INCLUDE_SDIRS := $(INCLUDE_DIR)/ $(wildcard $(INCLUDE_DIR)/*/) $(wildcard $(INCLUDE_DIR)/**/*/)
 
 # All .c files
 C_FILES := $(foreach d, $(SRC_SDIRS), $(wildcard $(d)*.c))

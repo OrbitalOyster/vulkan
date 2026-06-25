@@ -1,188 +1,62 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <vulkan/vulkan_core.h>
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "debug.h"
+#include "glfw.h"
+#include "vulkan/instance.h"
+#include "vulkan/physical_device.h"
+#include "vulkan/queue.h"
+#include "vulkan/validation_layers.h"
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vulkan/vulkan_core.h>
 
-#include "debug.h"
-
-GLFWwindow *GLFWWindow;
-VkInstance vulkanInstance;
 VkDevice vulkanLogicalDevice;
 VkSurfaceKHR vulkanSurface;
 VkSwapchainKHR swapChain;
 
-#define VALIDATION_LAYERS_COUNT 1
 #define MAX_FRAMES_IN_FLIGHT 2
 
 int main(void) {
-  /* Init GLFW */
-  if (!glfwInit())
-    PANIC(1, "Unable to init GLFW")
+  init_glfw();
   INFO("Initialized GLFW")
-
-  /* Create GLFW window */
-  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-  GLFWWindow = glfwCreateWindow(640, 480, "Vulkan", NULL, NULL);
-  if (!GLFWWindow)
-    PANIC(1, "Unable to create GLFW window")
-  glfwMakeContextCurrent(GLFWWindow);
+  GLFWwindow *glfw_window = create_window();
   INFO("Created window")
-
-  /* Check if vulkan is supported */
-  if (glfwVulkanSupported())
-    INFO("Vulkan supported")
-
-  /* GLFW extensions */
-  uint32_t glfwExtensionCount = 0;
-  const char **glfwExtensions =
-      glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-  INFOF("GLFW extensions: %i", glfwExtensionCount)
-  for (uint32_t i = 0; i < glfwExtensionCount; i++)
-    INFOF("\t%s", glfwExtensions[i])
-
-  /* Validation layers */
-  uint32_t availableValidationLayerCount;
-  vkEnumerateInstanceLayerProperties(&availableValidationLayerCount, NULL);
-  INFOF("Vulkan validation layers: %u", availableValidationLayerCount)
-  VkLayerProperties *availableValidationLayers =
-      calloc(sizeof(VkLayerProperties), availableValidationLayerCount);
-  vkEnumerateInstanceLayerProperties(&availableValidationLayerCount,
-                                     availableValidationLayers);
-  for (uint32_t i = 0; i < availableValidationLayerCount; i++)
-    INFOF("\t%s - %s", availableValidationLayers[i].layerName,
-          availableValidationLayers[i].description)
-
-  const char *validationLayers[VALIDATION_LAYERS_COUNT] = {
-      "VK_LAYER_KHRONOS_validation"};
-
-  /* Check if all requested validation layers are available */
-  for (uint32_t i = 0; i < VALIDATION_LAYERS_COUNT; i++) {
-    const char *layerName = validationLayers[i];
-    bool layerFound = false;
-    for (uint32_t j = 0; j < availableValidationLayerCount; j++) {
-      if (strcmp(layerName, availableValidationLayers[j].layerName) == 0) {
-        layerFound = true;
-        break;
-      }
-    }
-    if (!layerFound) {
-      PANICF(1, "Validation layer not found: %s", layerName)
-    }
-  }
-
-  /* Gather vulkan info */
-  VkApplicationInfo appInfo = {.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                               .pApplicationName = "Vulkan",
-                               .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-                               .pEngineName = "No Engine",
-                               .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-                               .apiVersion = VK_API_VERSION_1_0};
-  VkInstanceCreateInfo createVulkanInstanceInfo = {
-      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pApplicationInfo = &appInfo,
-      .enabledExtensionCount = glfwExtensionCount,
-      .ppEnabledExtensionNames = glfwExtensions,
-      .enabledLayerCount = VALIDATION_LAYERS_COUNT,
-      .ppEnabledLayerNames = validationLayers,
-  };
-
-  /* Vulkan extensions */
-  uint32_t vulkanExtensionCount = 0;
-  vkEnumerateInstanceExtensionProperties(NULL, &vulkanExtensionCount, NULL);
-  INFOF("Vulkan extensions: %u", vulkanExtensionCount)
-  VkExtensionProperties *vulkanExtensionProperties =
-      calloc(sizeof(VkExtensionProperties), vulkanExtensionCount);
-  vkEnumerateInstanceExtensionProperties(NULL, &vulkanExtensionCount,
-                                         vulkanExtensionProperties);
-  for (uint32_t i = 0; i < vulkanExtensionCount; i++)
-    INFOF("\t%s", vulkanExtensionProperties[i].extensionName)
-
-  /* Create vulkan instance */
-  if (vkCreateInstance(&createVulkanInstanceInfo, NULL, &vulkanInstance) ==
-      VK_SUCCESS) {
-    INFO("Created Vulkan instance")
-  } else
-    PANIC(1, "Unable to create Vulkan instance")
-
-  /* Physical device */
-  VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-  uint32_t deviceCount = 0;
-  vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, NULL);
-  INFOF("Physical devices: %u", deviceCount)
-  if (deviceCount == 0)
-    PANIC(1, "No physical device found")
-  VkPhysicalDevice *physicalDevices =
-      calloc(sizeof(VkPhysicalDevice), deviceCount);
-  vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, physicalDevices);
-
-  /* The only device */
-  if (deviceCount == 1)
-    physicalDevice = physicalDevices[0];
-  /* Else - found more suitable */
-  else
-    for (uint32_t i = 0; i < deviceCount; i++) {
-      VkPhysicalDeviceProperties deviceProperties;
-      vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProperties);
-      VkPhysicalDeviceFeatures deviceFeatures;
-      vkGetPhysicalDeviceFeatures(physicalDevices[i], &deviceFeatures);
-      INFOF("\t%s", deviceProperties.deviceName)
-      if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-        INFO("\t\tLooks good")
-        physicalDevice = physicalDevices[i];
-      } else
-        INFO("\t\tIgnored")
-    }
-  /* Nothing good found */
-  if (physicalDevice == VK_NULL_HANDLE)
-    PANIC(1, "No suitable device found")
-
-  /* Queue families */
-  uint32_t queueFamilyCount = 0;
-  vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount,
-                                           NULL);
-  INFOF("Queue families: %u", queueFamilyCount)
-  VkQueueFamilyProperties *queueFamilies =
-      calloc(sizeof(VkQueueFamilyProperties), queueFamilyCount);
-  vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount,
-                                           queueFamilies);
-  /* Queue count */
-  uint32_t queueCount[queueFamilyCount];
-
-  uint32_t selectedQueueFamilyIndex = 0;
-  for (uint32_t i = 0; i < queueFamilyCount; i++) {
-    queueCount[i] = queueFamilies[i].queueCount;
-    if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-      selectedQueueFamilyIndex = i;
-      INFOF("\tSelected queue family index: %u, queue count: %u",
-            selectedQueueFamilyIndex, queueCount[i])
-    }
-  }
+  uint32_t glfw_extension_count = get_glfw_extension_count();
+  INFOF("GLFW extensions: %i", glfw_extension_count)
+  const char **glfw_extension_names =
+      get_glfw_extension_names(&glfw_extension_count);
+  INFOF("GLFW extensions: %i", glfw_extension_count)
+  for (uint32_t i = 0; i < glfw_extension_count; i++)
+    INFOF("\t%s", glfw_extension_names[i])
+  enable_vulkan_validation_layers();
+  const char **required_validation_layers = get_required_validation_layers();
+  INFO("Enabled validation layers")
+  VkInstance vulkan_instance = create_vulkan_instance(
+      glfw_extension_count, glfw_extension_names, required_validation_layers);
+  INFO("Created Vulkan instance")
+  VkPhysicalDevice physical_device = select_physical_device(vulkan_instance);
+  INFO("Selected physical device");
+  uint32_t queue_family_count = get_queue_family_count(physical_device);
+  INFOF("Queue families: %u", queue_family_count)
+  uint32_t selectedQueueFamilyIndex =
+      select_queue_family(physical_device, queue_family_count);
 
   /* Queue priorities */
-  float *queuePriorities =
-      calloc(sizeof(float), queueCount[selectedQueueFamilyIndex]);
-  for (uint32_t i = 0; i < queueCount[selectedQueueFamilyIndex]; i++)
-    queuePriorities[i] = 1.0;
+  // float *queuePriorities =
+  //     calloc(sizeof(float), queueCount[selectedQueueFamilyIndex]);
+  // for (uint32_t i = 0; i < queueCount[selectedQueueFamilyIndex]; i++)
+  //   queuePriorities[i] = 1.0;
 
+  float queuePriority = 1.0;
   /* Queue create info */
-  VkDeviceQueueCreateInfo *queueCreateInfo =
-      calloc(sizeof(VkDeviceQueueCreateInfo), queueFamilyCount);
-  for (uint32_t i = 0; i < queueFamilyCount; i++) {
-    VkDeviceQueueCreateInfo info = {
-        .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-        .pNext = NULL,
-        .flags = 0,
-        .queueFamilyIndex = i,
-        .queueCount = queueCount[selectedQueueFamilyIndex],
-        .pQueuePriorities = queuePriorities,
-    };
-    queueCreateInfo[i] = info;
-  }
+  VkDeviceQueueCreateInfo queueCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+      .pNext = NULL,
+      .flags = 0,
+      .queueFamilyIndex = selectedQueueFamilyIndex,
+      .queueCount = 1,
+      .pQueuePriorities = &queuePriority,
+  };
 
   /* Physical device features */
   VkPhysicalDeviceFeatures deviceFeatures = {0};
@@ -200,13 +74,13 @@ int main(void) {
 
   /* Check device extension support */
   uint32_t availableExtentionsCount;
-  vkEnumerateDeviceExtensionProperties(physicalDevice, NULL,
+  vkEnumerateDeviceExtensionProperties(physical_device, NULL,
                                        &availableExtentionsCount, NULL);
   INFOF("Available extensions: %u", availableExtentionsCount)
   VkExtensionProperties *availableExtensions =
       calloc(sizeof(VkExtensionProperties), availableExtentionsCount);
   vkEnumerateDeviceExtensionProperties(
-      physicalDevice, NULL, &availableExtentionsCount, availableExtensions);
+      physical_device, NULL, &availableExtentionsCount, availableExtensions);
 
   for (uint32_t j = 0; j < requiredExtensionCount; j++) {
     bool extensionSupported = false;
@@ -226,8 +100,8 @@ int main(void) {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
       .pNext = NULL,
       .flags = 0,
-      .queueCreateInfoCount = queueFamilyCount,
-      .pQueueCreateInfos = queueCreateInfo,
+      .queueCreateInfoCount = 1,
+      .pQueueCreateInfos = &queueCreateInfo,
       .enabledLayerCount = 0,
       .ppEnabledLayerNames = NULL,
       .pEnabledFeatures = &deviceFeatures,
@@ -235,7 +109,7 @@ int main(void) {
       .ppEnabledExtensionNames = requiredExtensionNames,
   };
 
-  if (vkCreateDevice(physicalDevice, &createLogicalDeviceInfo, NULL,
+  if (vkCreateDevice(physical_device, &createLogicalDeviceInfo, NULL,
                      &vulkanLogicalDevice) == VK_SUCCESS) {
     INFO("Created Vulkan logical device")
   } else
@@ -247,7 +121,7 @@ int main(void) {
                    &graphicsQueue);
 
   /* Vulkan surface */
-  if (glfwCreateWindowSurface(vulkanInstance, GLFWWindow, NULL,
+  if (glfwCreateWindowSurface(vulkan_instance, glfw_window, NULL,
                               &vulkanSurface) == VK_SUCCESS) {
     INFO("Created Vulkan surface")
   } else
@@ -255,8 +129,9 @@ int main(void) {
 
   /* Verify surface support */
   VkBool32 surfaceSupported;
-  vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, selectedQueueFamilyIndex,
-                                       vulkanSurface, &surfaceSupported);
+  vkGetPhysicalDeviceSurfaceSupportKHR(physical_device,
+                                       selectedQueueFamilyIndex, vulkanSurface,
+                                       &surfaceSupported);
   /*
    * TODO: Edge case
    * "It's actually possible that the queue families supporting drawing commands
@@ -272,18 +147,18 @@ int main(void) {
 
   /* Surfce capabilities */
   VkSurfaceCapabilitiesKHR surfaceCapabilities;
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, vulkanSurface,
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, vulkanSurface,
                                             &surfaceCapabilities);
 
   /* Surface formats */
   uint32_t formatCount;
-  vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, vulkanSurface,
+  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vulkanSurface,
                                        &formatCount, NULL);
   INFOF("Surface formats: %u", formatCount)
   if (formatCount == 0)
     PANIC(1, "No surface formats available")
   VkSurfaceFormatKHR *formats = calloc(sizeof(VkSurfaceFormatKHR), formatCount);
-  vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, vulkanSurface,
+  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vulkanSurface,
                                        &formatCount, formats);
 
   /* Look for VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR */
@@ -299,14 +174,14 @@ int main(void) {
 
   /* Present modes */
   uint32_t presentModeCount;
-  vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, vulkanSurface,
+  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vulkanSurface,
                                             &presentModeCount, NULL);
   INFOF("Present modes: %u", presentModeCount)
   if (presentModeCount == 0)
     PANIC(1, "No present modes available")
   VkPresentModeKHR *presentModes =
       calloc(sizeof(VkPresentModeKHR), presentModeCount);
-  vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, vulkanSurface,
+  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vulkanSurface,
                                             &presentModeCount, presentModes);
   /* Check present mode */
   VkPresentModeKHR presentMode;
@@ -318,11 +193,11 @@ int main(void) {
   }
 
   /* Swap extent */
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, vulkanSurface,
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, vulkanSurface,
                                             &surfaceCapabilities);
   bool extent_suitable = true;
   int windowWidth, windowHeight;
-  glfwGetFramebufferSize(GLFWWindow, &windowWidth, &windowHeight);
+  glfwGetFramebufferSize(glfw_window, &windowWidth, &windowHeight);
   INFOF("GLFW framebuffer size: %u %u", windowWidth, windowHeight)
   VkExtent2D actualExtent = {
       .width = windowWidth,
@@ -762,7 +637,7 @@ int main(void) {
   } else
     PANIC(1, "Failed to create semaphores")
 
-  while (!glfwWindowShouldClose(GLFWWindow)) {
+  while (!glfwWindowShouldClose(glfw_window)) {
     glfwPollEvents();
 
     /* Draw frame */
@@ -863,10 +738,7 @@ int main(void) {
     vkDestroyImageView(vulkanLogicalDevice, swapChainImageViews[i], NULL);
   vkDestroySwapchainKHR(vulkanLogicalDevice, swapChain, NULL);
   vkDestroyDevice(vulkanLogicalDevice, NULL);
-  vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
-  vkDestroyInstance(vulkanInstance, NULL);
-  glfwDestroyWindow(GLFWWindow);
-  glfwTerminate();
+  // vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
   INFO("Cleanup complete")
 
   return EXIT_SUCCESS;
