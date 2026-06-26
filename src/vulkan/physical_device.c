@@ -1,5 +1,6 @@
 #include "vulkan/physical_device.h"
 #include "debug.h"
+#include <vulkan/vulkan_core.h>
 
 /* Pick suitable physical device */
 VkPhysicalDevice select_physical_device(VkInstance instance) {
@@ -35,4 +36,26 @@ VkPhysicalDevice select_physical_device(VkInstance instance) {
   if (physical_device == VK_NULL_HANDLE)
     PANIC(1, "No suitable device found");
   return physical_device;
+}
+
+VkPresentModeKHR get_present_mode(VkPhysicalDevice physical_device,
+                                  VkSurfaceKHR surface) {
+  /* Present modes */
+  uint32_t present_mode_count = 0;
+  vkGetPhysicalDeviceSurfacePresentModesKHR(
+      physical_device, surface, &present_mode_count, VK_NULL_HANDLE);
+  INFOF("Present modes: %u", present_mode_count)
+  if (present_mode_count == 0)
+    PANIC(1, "No present modes available")
+  VkPresentModeKHR *all_present_modes =
+      calloc(sizeof(VkPresentModeKHR), present_mode_count);
+  vkGetPhysicalDeviceSurfacePresentModesKHR(
+      physical_device, surface, &present_mode_count, all_present_modes);
+  /* Check present mode */
+  VkPresentModeKHR presentMode = {0};
+  for (uint32_t i = 0; i < present_mode_count; i++)
+    if (all_present_modes[i] == VK_PRESENT_MODE_FIFO_KHR)
+      presentMode = all_present_modes[i];
+  /* TODO Didn't find present mode */
+  return presentMode;
 }

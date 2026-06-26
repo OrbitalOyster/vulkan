@@ -5,6 +5,8 @@
 #include "vulkan/physical_device.h"
 #include "vulkan/queue.h"
 #include "vulkan/surface.h"
+#include "vulkan/swapchain.h"
+#include "vulkan/swapchain_extent.h"
 #include "vulkan/validation_layers.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -38,83 +40,48 @@ int main(void) {
   INFO("Created logical device");
   GLFWwindow *glfw_window = create_window();
   INFO("Created window")
-  VkSurfaceKHR surface = create_surface(vulkan_instance, glfw_window, physical_device, selected_queue_family_index);
+  VkSurfaceKHR surface =
+      create_surface(vulkan_instance, glfw_window, physical_device,
+                     selected_queue_family_index);
   INFO("Created vulkan surface");
+  uint32_t framebuffer_width = 0, framebuffer_height = 0;
+  get_framebuffer_size(glfw_window, &framebuffer_width, &framebuffer_height);
+  INFOF("GLFW framebuffer size: %u %u", framebuffer_width, framebuffer_height);
+  VkSurfaceCapabilitiesKHR capabilities =
+      get_surface_capabilities(physical_device, surface);
+  INFOF("Surface capabilities: %u %u", capabilities.currentExtent.width,
+        capabilities.currentExtent.height)
+  VkExtent2D swapchain_extent = create_swapchain_extent(
+      capabilities, framebuffer_width, framebuffer_height);
+  INFOF("Swapchain extent: %ux%u", swapchain_extent.width,
+        swapchain_extent.height);
+  uint32_t image_count = get_swapchain_image_count(capabilities);
+  INFOF("Swapchain image count: %u", image_count);
 
-  /* Graphics queue */
-  VkQueue graphicsQueue;
-  vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
-                   &graphicsQueue);
+  VkSurfaceFormatKHR surface_format =
+      get_surface_format(physical_device, surface);
 
-  /* Present queue */
-  VkQueue presentQueue;
-  vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
-                   &presentQueue);
+  VkPresentModeKHR present_mode = get_present_mode(physical_device, surface);
 
-  /* Surface capabilities */
-  VkSurfaceCapabilitiesKHR surfaceCapabilities;
-  vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
-                                            &surfaceCapabilities);
-
-  /* Surface formats */
-  uint32_t formatCount;
-  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface,
-                                       &formatCount, NULL);
-  INFOF("Surface formats: %u", formatCount)
-  if (formatCount == 0)
-    PANIC(1, "No surface formats available")
-  VkSurfaceFormatKHR *formats = calloc(sizeof(VkSurfaceFormatKHR), formatCount);
-  vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface,
-                                       &formatCount, formats);
-
-  /* Look for VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR */
-  VkSurfaceFormatKHR surfaceFormat;
-  for (uint32_t i = 0; i < formatCount; i++) {
-    if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
-        formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-      surfaceFormat = formats[i];
-      INFO("Found sRGB surface format")
-      break;
-    }
-  }
-
-  /* Present modes */
-  uint32_t presentModeCount;
-  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface,
-                                            &presentModeCount, NULL);
-  INFOF("Present modes: %u", presentModeCount)
-  if (presentModeCount == 0)
-    PANIC(1, "No present modes available")
-  VkPresentModeKHR *presentModes =
-      calloc(sizeof(VkPresentModeKHR), presentModeCount);
-  vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface,
-                                            &presentModeCount, presentModes);
-  /* Check present mode */
-  VkPresentModeKHR presentMode;
-  for (uint32_t i = 0; i < presentModeCount; i++) {
-    if (presentModes[i] == VK_PRESENT_MODE_FIFO_KHR) {
-      presentMode = presentModes[i];
-      INFO("Found present mode")
-    }
-  }
+  VkSwapchainKHR swapchain = create_swapchain(surface, image_count, surface_format, swapchain_extent, capabilities, present_mode, logical_device);
 
   /* TODO: Manage separate queues edge case */
 
   /* Swap chain images */
   VkImage *swapChainImages;
-  vkGetSwapchainImagesKHR(logical_device, swapChain, &imageCount, NULL);
-  swapChainImages = calloc(sizeof(VkImage), imageCount);
-  vkGetSwapchainImagesKHR(logical_device, swapChain, &imageCount,
+  vkGetSwapchainImagesKHR(logical_device, swapchain, &image_count, NULL);
+  swapChainImages = calloc(sizeof(VkImage), image_count);
+  vkGetSwapchainImagesKHR(logical_device, swapchain, &image_count,
                           swapChainImages);
 
   /* Swap chain image views */
-  VkImageView *swapChainImageViews = calloc(sizeof(VkImageView), imageCount);
-  for (size_t i = 0; i < imageCount; i++) {
+  VkImageView *swapChainImageViews = calloc(sizeof(VkImageView), image_count);
+  for (size_t i = 0; i < image_count; i++) {
     VkImageViewCreateInfo createImageViewInfo = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = swapChainImages[i],
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = surfaceFormat.format,
+        .format = surface_format.format,
         .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
         .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
         .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -217,15 +184,15 @@ int main(void) {
   VkViewport viewport = {
       .x = 0.0f,
       .y = 0.0f,
-      .width = swapchainExtent.width,
-      .height = swapchainExtent.height,
+      .width = swapchain_extent.width,
+      .height = swapchain_extent.height,
       .minDepth = 0.0f,
       .maxDepth = 1.0f,
   };
 
   VkRect2D scissor = {
       .offset = {0, 0},
-      .extent = swapchainExtent,
+      .extent = swapchain_extent,
   };
 
   /* TODO: No magic numbers */
@@ -302,7 +269,7 @@ int main(void) {
 
   /* Render pass */
   VkAttachmentDescription colorAttachment = {
-      .format = surfaceFormat.format,
+      .format = surface_format.format,
       .samples = VK_SAMPLE_COUNT_1_BIT,
       .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -393,8 +360,8 @@ int main(void) {
 
   /* Framebuffers */
   VkFramebuffer *swapChainFramebuffers =
-      calloc(sizeof(VkFramebuffer), imageCount);
-  for (size_t i = 0; i < imageCount; i++) {
+      calloc(sizeof(VkFramebuffer), image_count);
+  for (size_t i = 0; i < image_count; i++) {
     VkImageView attachments[] = {swapChainImageViews[i]};
 
     VkFramebufferCreateInfo framebufferCreateInfo = {
@@ -402,8 +369,8 @@ int main(void) {
         .renderPass = renderPass,
         .attachmentCount = 1,
         .pAttachments = attachments,
-        .width = swapchainExtent.width,
-        .height = swapchainExtent.height,
+        .width = swapchain_extent.width,
+        .height = swapchain_extent.height,
         .layers = 1,
     };
 
@@ -411,7 +378,7 @@ int main(void) {
                             &swapChainFramebuffers[i]) != VK_SUCCESS)
       PANIC(1, "Failed to create framebuffer")
   }
-  INFOF("Created %u framebuffers", imageCount)
+  INFOF("Created %u framebuffers", image_count)
 
   /* Command pools */
   VkCommandPool commandPool;
@@ -468,6 +435,16 @@ int main(void) {
   } else
     PANIC(1, "Failed to create semaphores")
 
+  /* Graphics queue */
+  VkQueue graphicsQueue;
+  vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
+                   &graphicsQueue);
+
+  /* Present queue */
+  VkQueue presentQueue;
+  vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
+                   &presentQueue);
+
   while (!glfwWindowShouldClose(glfw_window)) {
     glfwPollEvents();
 
@@ -475,7 +452,7 @@ int main(void) {
     vkWaitForFences(logical_device, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
     vkResetFences(logical_device, 1, &inFlightFence);
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(logical_device, swapChain, UINT64_MAX,
+    vkAcquireNextImageKHR(logical_device, swapchain, UINT64_MAX,
                           imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
     vkResetCommandBuffer(commandBuffer, 0);
 
@@ -497,7 +474,7 @@ int main(void) {
         .renderPass = renderPass,
         .framebuffer = swapChainFramebuffers[imageIndex],
         .renderArea.offset = {0, 0},
-        .renderArea.extent = swapchainExtent,
+        .renderArea.extent = swapchain_extent,
         .clearValueCount = 1,
         .pClearValues = &clearColor,
     };
@@ -536,7 +513,7 @@ int main(void) {
       PANIC(1, "Failed to submit draw command buffer")
 
     /* Present */
-    VkSwapchainKHR swapChains[] = {swapChain};
+    VkSwapchainKHR swapChains[] = {swapchain};
     VkPresentInfoKHR presentInfo = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
@@ -557,16 +534,16 @@ int main(void) {
   vkDestroySemaphore(logical_device, renderFinishedSemaphore, NULL);
   vkDestroyCommandPool(logical_device, commandPool, NULL);
   vkDestroyFence(logical_device, inFlightFence, NULL);
-  for (uint32_t i = 0; i < imageCount; i++)
+  for (uint32_t i = 0; i < image_count; i++)
     vkDestroyFramebuffer(logical_device, swapChainFramebuffers[i], NULL);
   vkDestroyPipeline(logical_device, graphicsPipeline, NULL);
   vkDestroyPipelineLayout(logical_device, pipelineLayout, NULL);
   vkDestroyRenderPass(logical_device, renderPass, NULL);
   vkDestroyShaderModule(logical_device, vertexShaderModule, NULL);
   vkDestroyShaderModule(logical_device, fragmentShaderModule, NULL);
-  for (size_t i = 0; i < imageCount; i++)
+  for (size_t i = 0; i < image_count; i++)
     vkDestroyImageView(logical_device, swapChainImageViews[i], NULL);
-  vkDestroySwapchainKHR(logical_device, swapChain, NULL);
+  vkDestroySwapchainKHR(logical_device, swapchain, NULL);
   vkDestroyDevice(logical_device, NULL);
   // vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
   INFO("Cleanup complete")

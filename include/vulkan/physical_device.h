@@ -4,5 +4,7 @@
 #include <vulkan/vulkan_core.h>
 
 VkPhysicalDevice select_physical_device(VkInstance instance);
+VkPresentModeKHR get_present_mode(VkPhysicalDevice physical_device,
+                                  VkSurfaceKHR surface);
 
 #endif

@@ -9,5 +9,7 @@ GLFWwindow *create_window(void);
 uint32_t get_glfw_extension_count(void);
 const char **get_glfw_extension_names(uint32_t *glfw_extension_count);
 void destroy_window(GLFWwindow *window);
+void get_framebuffer_size(GLFWwindow *window, uint32_t *framebuffer_width,
+                          uint32_t *framebuffer_height);
 
 #endif

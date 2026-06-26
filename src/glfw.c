@@ -40,6 +40,14 @@ const char **get_glfw_extension_names(uint32_t *glfw_extension_count) {
   return glfw_extensions;
 }
 
+void get_framebuffer_size(GLFWwindow *window, uint32_t *framebuffer_width,
+                          uint32_t *framebuffer_height) {
+  int w, h;
+  glfwGetFramebufferSize(window, &w, &h);
+  *framebuffer_width = w;
+  *framebuffer_height = h;
+}
+
 void destroy_window(GLFWwindow *window) {
   glfwDestroyWindow(window);
   glfwTerminate();
