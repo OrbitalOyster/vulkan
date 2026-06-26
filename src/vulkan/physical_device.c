@@ -44,7 +44,7 @@ VkPresentModeKHR get_present_mode(VkPhysicalDevice physical_device,
   uint32_t present_mode_count = 0;
   vkGetPhysicalDeviceSurfacePresentModesKHR(
       physical_device, surface, &present_mode_count, VK_NULL_HANDLE);
-  INFOF("Present modes: %u", present_mode_count)
+  // INFOF("Present modes: %u", present_mode_count)
   if (present_mode_count == 0)
     PANIC(1, "No present modes available")
   VkPresentModeKHR *all_present_modes =

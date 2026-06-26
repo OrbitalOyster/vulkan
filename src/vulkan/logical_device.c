@@ -14,7 +14,7 @@ VkDevice create_logical_device(VkPhysicalDevice physical_device,
   vkEnumerateDeviceExtensionProperties(physical_device, VK_NULL_HANDLE,
                                        &available_extension_count,
                                        VK_NULL_HANDLE);
-  INFOF("Available extensions: %u", available_extension_count)
+  // INFOF("Available extensions: %u", available_extension_count)
   VkExtensionProperties *available_extensions =
       calloc(sizeof(VkExtensionProperties), available_extension_count);
   vkEnumerateDeviceExtensionProperties(physical_device, VK_NULL_HANDLE,

@@ -4,9 +4,9 @@
 #include "vulkan/logical_device.h"
 #include "vulkan/physical_device.h"
 #include "vulkan/queue.h"
+#include "vulkan/shaders.h"
 #include "vulkan/surface.h"
 #include "vulkan/swapchain.h"
-#include "vulkan/swapchain_extent.h"
 #include "vulkan/validation_layers.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -40,13 +40,13 @@ int main(void) {
   INFO("Created logical device");
   GLFWwindow *glfw_window = create_window();
   INFO("Created window")
+  uint32_t framebuffer_width = 0, framebuffer_height = 0;
+  get_framebuffer_size(glfw_window, &framebuffer_width, &framebuffer_height);
+  INFOF("GLFW framebuffer size: %u %u", framebuffer_width, framebuffer_height);
   VkSurfaceKHR surface =
       create_surface(vulkan_instance, glfw_window, physical_device,
                      selected_queue_family_index);
   INFO("Created vulkan surface");
-  uint32_t framebuffer_width = 0, framebuffer_height = 0;
-  get_framebuffer_size(glfw_window, &framebuffer_width, &framebuffer_height);
-  INFOF("GLFW framebuffer size: %u %u", framebuffer_width, framebuffer_height);
   VkSurfaceCapabilitiesKHR capabilities =
       get_surface_capabilities(physical_device, surface);
   INFOF("Surface capabilities: %u %u", capabilities.currentExtent.width,
@@ -60,111 +60,24 @@ int main(void) {
 
   VkSurfaceFormatKHR surface_format =
       get_surface_format(physical_device, surface);
-
   VkPresentModeKHR present_mode = get_present_mode(physical_device, surface);
+  VkSwapchainKHR swapchain =
+      create_swapchain(surface, image_count, surface_format, swapchain_extent,
+                       capabilities, present_mode, logical_device);
+  INFO("Created swapchain")
 
-  VkSwapchainKHR swapchain = create_swapchain(surface, image_count, surface_format, swapchain_extent, capabilities, present_mode, logical_device);
+  VkImageView *image_views = create_swapchain_image_views(
+      logical_device, swapchain, &image_count, surface_format);
 
   /* TODO: Manage separate queues edge case */
 
-  /* Swap chain images */
-  VkImage *swapChainImages;
-  vkGetSwapchainImagesKHR(logical_device, swapchain, &image_count, NULL);
-  swapChainImages = calloc(sizeof(VkImage), image_count);
-  vkGetSwapchainImagesKHR(logical_device, swapchain, &image_count,
-                          swapChainImages);
-
-  /* Swap chain image views */
-  VkImageView *swapChainImageViews = calloc(sizeof(VkImageView), image_count);
-  for (size_t i = 0; i < image_count; i++) {
-    VkImageViewCreateInfo createImageViewInfo = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = swapChainImages[i],
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = surface_format.format,
-        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
-        .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .subresourceRange.baseMipLevel = 0,
-        .subresourceRange.levelCount = 1,
-        .subresourceRange.baseArrayLayer = 0,
-        .subresourceRange.layerCount = 1,
-    };
-    if (vkCreateImageView(logical_device, &createImageViewInfo, NULL,
-                          &swapChainImageViews[i]) == VK_SUCCESS) {
-      INFOF("Created image view #%u", i)
-    } else
-      PANIC(1, "Failed to create image view")
-  }
-
-  /* Load shaders */
-  FILE *vertexShaderFile = NULL, *fragmentShaderFile = NULL;
-  vertexShaderFile = fopen("shaders/vert.spv", "rb+");
-  fragmentShaderFile = fopen("shaders/frag.spv", "rb+");
-  if (vertexShaderFile != NULL && fragmentShaderFile != NULL) {
-    INFO("Loaded shaders code")
-  } else
-    PANIC(1, "Unable to load shaders")
-  fseek(vertexShaderFile, 0, SEEK_END);
-  fseek(fragmentShaderFile, 0, SEEK_END);
-  uint32_t vertexShaderFileSize = ftell(vertexShaderFile);
-  uint32_t fragmentShaderFileSize = ftell(fragmentShaderFile);
-  char *vertexShaderCode = (char *)calloc(vertexShaderFileSize, sizeof(char));
-  char *fragmentShaderCode =
-      (char *)calloc(fragmentShaderFileSize, sizeof(char));
-  rewind(vertexShaderFile);
-  rewind(fragmentShaderFile);
-  fread(vertexShaderCode, 1, vertexShaderFileSize, vertexShaderFile);
-  INFOF("Loaded vertex shaders, %u bytes", vertexShaderFileSize)
-  fread(fragmentShaderCode, 1, fragmentShaderFileSize, fragmentShaderFile);
-  INFOF("Loaded fragment shaders, %u bytes", fragmentShaderFileSize)
-  fclose(vertexShaderFile);
-  fclose(fragmentShaderFile);
-
-  /* Shader modules */
-  VkShaderModuleCreateInfo createVertexShaderInfo = {
-      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-      .codeSize = vertexShaderFileSize,
-      .pCode = (const uint32_t *)vertexShaderCode,
-  };
-  VkShaderModule vertexShaderModule;
-  if (vkCreateShaderModule(logical_device, &createVertexShaderInfo, NULL,
-                           &vertexShaderModule) == VK_SUCCESS) {
-    INFO("Created vertex shader module")
-  } else
-    PANIC(1, "Failed to create vertex shader module")
-  VkShaderModuleCreateInfo createFragmentShaderInfo = {
-      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-      .codeSize = fragmentShaderFileSize,
-      .pCode = (const uint32_t *)fragmentShaderCode,
-  };
-  VkShaderModule fragmentShaderModule;
-  if (vkCreateShaderModule(logical_device, &createFragmentShaderInfo, NULL,
-                           &fragmentShaderModule) == VK_SUCCESS) {
-
-    INFO("Created fragment shader module")
-  } else
-    PANIC(1, "Failed to create fragment shader module")
-
-  /* Shader staging */
-  VkPipelineShaderStageCreateInfo vertexShaderStageInfo = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-      .stage = VK_SHADER_STAGE_VERTEX_BIT,
-      .module = vertexShaderModule,
-      .pName = "main",
-  };
-
-  VkPipelineShaderStageCreateInfo fragmentShaderStageInfo = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-      .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-      .module = fragmentShaderModule,
-      .pName = "main",
-  };
-
-  VkPipelineShaderStageCreateInfo shaderStages[] = {vertexShaderStageInfo,
-                                                    fragmentShaderStageInfo};
+  VkShaderModule vertex_shader_module =
+      create_shader_module("shaders/vert.spv", logical_device);
+  VkShaderModule fragment_shader_module =
+      create_shader_module("shaders/frag.spv", logical_device);
+  INFO("Loaded shaders")
+  VkPipelineShaderStageCreateInfo *shader_stages =
+      create_shader_stages(vertex_shader_module, fragment_shader_module);
 
   /* Pipeline setup */
   VkPipelineVertexInputStateCreateInfo vertexInputInfo = {
@@ -333,7 +246,7 @@ int main(void) {
   VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
       .stageCount = 2,
-      .pStages = shaderStages,
+      .pStages = shader_stages,
       .pVertexInputState = &vertexInputInfo,
       .pInputAssemblyState = &inputAssembly,
       .pViewportState = &viewportState,
@@ -362,7 +275,7 @@ int main(void) {
   VkFramebuffer *swapChainFramebuffers =
       calloc(sizeof(VkFramebuffer), image_count);
   for (size_t i = 0; i < image_count; i++) {
-    VkImageView attachments[] = {swapChainImageViews[i]};
+    VkImageView attachments[] = {image_views[i]};
 
     VkFramebufferCreateInfo framebufferCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -539,10 +452,10 @@ int main(void) {
   vkDestroyPipeline(logical_device, graphicsPipeline, NULL);
   vkDestroyPipelineLayout(logical_device, pipelineLayout, NULL);
   vkDestroyRenderPass(logical_device, renderPass, NULL);
-  vkDestroyShaderModule(logical_device, vertexShaderModule, NULL);
-  vkDestroyShaderModule(logical_device, fragmentShaderModule, NULL);
+  vkDestroyShaderModule(logical_device, vertex_shader_module, NULL);
+  vkDestroyShaderModule(logical_device, fragment_shader_module, NULL);
   for (size_t i = 0; i < image_count; i++)
-    vkDestroyImageView(logical_device, swapChainImageViews[i], NULL);
+    vkDestroyImageView(logical_device, image_views[i], NULL);
   vkDestroySwapchainKHR(logical_device, swapchain, NULL);
   vkDestroyDevice(logical_device, NULL);
   // vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
