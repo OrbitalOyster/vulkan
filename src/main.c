@@ -1,5 +1,6 @@
 #include "debug.h"
 #include "glfw.h"
+#include "vulkan/command_buffer.h"
 #include "vulkan/instance.h"
 #include "vulkan/logical_device.h"
 #include "vulkan/physical_device.h"
@@ -13,7 +14,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <vulkan/vulkan_core.h>
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
@@ -99,35 +99,11 @@ int main(void) {
       &viewport, &scissor, logical_device, shader_stages, render_pass);
   INFO("Created graphics pipeline")
 
-  /* Command pools */
-  VkCommandPool commandPool;
-  VkCommandPoolCreateInfo poolInfo = {
-      .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-      .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-      .queueFamilyIndex = selected_queue_family_index,
-  };
-
-  if (vkCreateCommandPool(logical_device, &poolInfo, NULL, &commandPool) ==
-      VK_SUCCESS) {
-    INFO("Created command pool")
-  } else
-    PANIC(1, "Unable to create command pool")
-
-  /* Command buffer */
-
-  /* Allocate */
-  VkCommandBuffer commandBuffer;
-  VkCommandBufferAllocateInfo allocInfo = {
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-      .commandPool = commandPool,
-      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-      .commandBufferCount = 1,
-  };
-  if (vkAllocateCommandBuffers(logical_device, &allocInfo, &commandBuffer) ==
-      VK_SUCCESS) {
-    INFO("Allocated command buffers")
-  } else
-    PANIC(1, "Unable to allocate command buffers");
+  VkCommandPool command_pool =
+      create_command_pool(selected_queue_family_index, logical_device);
+  VkCommandBuffer commandBuffer =
+      create_command_buffer(command_pool, logical_device);
+  INFO("Created command buffer")
 
   VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
 
@@ -144,12 +120,12 @@ int main(void) {
   VkSemaphore renderFinishedSemaphore;
   VkFence inFlightFence;
 
-  if (vkCreateSemaphore(logical_device, &semaphoreInfo, NULL,
+  if (vkCreateSemaphore(logical_device, &semaphoreInfo, VK_NULL_HANDLE,
                         &imageAvailableSemaphore) == VK_SUCCESS &&
       vkCreateSemaphore(logical_device, &semaphoreInfo, NULL,
                         &renderFinishedSemaphore) == VK_SUCCESS &&
-      vkCreateFence(logical_device, &fenceInfo, NULL, &inFlightFence) ==
-          VK_SUCCESS) {
+      vkCreateFence(logical_device, &fenceInfo, VK_NULL_HANDLE,
+                    &inFlightFence) == VK_SUCCESS) {
     INFO("Created semaphores")
   } else
     PANIC(1, "Failed to create semaphores")
@@ -180,7 +156,7 @@ int main(void) {
     VkCommandBufferBeginInfo commandBufferBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = 0,
-        .pInheritanceInfo = NULL,
+        .pInheritanceInfo = VK_NULL_HANDLE,
     };
     if (vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) ==
         VK_SUCCESS) {
@@ -232,38 +208,38 @@ int main(void) {
       PANIC(1, "Failed to submit draw command buffer")
 
     /* Present */
-    VkSwapchainKHR swapChains[] = {swapchain};
-    VkPresentInfoKHR presentInfo = {
+    VkPresentInfoKHR present_info = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = signalSemaphores,
         .swapchainCount = 1,
-        .pSwapchains = swapChains,
+        .pSwapchains = &swapchain,
         .pImageIndices = &imageIndex,
-        .pResults = NULL,
+        .pResults = VK_NULL_HANDLE,
     };
     /* Ta-da */
-    vkQueuePresentKHR(presentQueue, &presentInfo);
+    vkQueuePresentKHR(presentQueue, &present_info);
   }
 
   vkDeviceWaitIdle(logical_device);
 
   INFO("Starting cleanup")
-  vkDestroySemaphore(logical_device, imageAvailableSemaphore, NULL);
-  vkDestroySemaphore(logical_device, renderFinishedSemaphore, NULL);
-  vkDestroyCommandPool(logical_device, commandPool, NULL);
-  vkDestroyFence(logical_device, inFlightFence, NULL);
+  vkDestroySemaphore(logical_device, imageAvailableSemaphore, VK_NULL_HANDLE);
+  vkDestroySemaphore(logical_device, renderFinishedSemaphore, VK_NULL_HANDLE);
+  // vkDestroyCommandPool(logical_device, commandPool, NULL);
+  vkDestroyFence(logical_device, inFlightFence, VK_NULL_HANDLE);
   for (uint32_t i = 0; i < image_count; i++)
-    vkDestroyFramebuffer(logical_device, swapchain_framebuffers[i], NULL);
-  vkDestroyPipeline(logical_device, graphics_pipeline, NULL);
+    vkDestroyFramebuffer(logical_device, swapchain_framebuffers[i],
+                         VK_NULL_HANDLE);
+  vkDestroyPipeline(logical_device, graphics_pipeline, VK_NULL_HANDLE);
   // vkDestroyPipelineLayout(logical_device, pipelineLayout, NULL);
-  vkDestroyRenderPass(logical_device, render_pass, NULL);
-  vkDestroyShaderModule(logical_device, vertex_shader_module, NULL);
-  vkDestroyShaderModule(logical_device, fragment_shader_module, NULL);
+  vkDestroyRenderPass(logical_device, render_pass, VK_NULL_HANDLE);
+  vkDestroyShaderModule(logical_device, vertex_shader_module, VK_NULL_HANDLE);
+  vkDestroyShaderModule(logical_device, fragment_shader_module, VK_NULL_HANDLE);
   for (size_t i = 0; i < image_count; i++)
-    vkDestroyImageView(logical_device, image_views[i], NULL);
-  vkDestroySwapchainKHR(logical_device, swapchain, NULL);
-  vkDestroyDevice(logical_device, NULL);
+    vkDestroyImageView(logical_device, image_views[i], VK_NULL_HANDLE);
+  vkDestroySwapchainKHR(logical_device, swapchain, VK_NULL_HANDLE);
+  vkDestroyDevice(logical_device, VK_NULL_HANDLE);
   // vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
   INFO("Cleanup complete")
 

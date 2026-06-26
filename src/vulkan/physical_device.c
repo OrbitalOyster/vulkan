@@ -1,6 +1,5 @@
 #include "vulkan/physical_device.h"
 #include "debug.h"
-#include <vulkan/vulkan_core.h>
 
 /* Pick suitable physical device */
 VkPhysicalDevice select_physical_device(VkInstance instance) {

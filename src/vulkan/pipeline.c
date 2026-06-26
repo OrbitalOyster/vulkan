@@ -1,7 +1,5 @@
 #include "vulkan/pipeline.h"
-
 #include "debug.h"
-#include <vulkan/vulkan_core.h>
 
 VkRenderPass create_render_pass(VkSurfaceFormatKHR surface_format,
                                 VkDevice logical_device) {
