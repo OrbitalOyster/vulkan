@@ -1,6 +1,5 @@
 #include "vulkan/swapchain.h"
 #include "debug.h"
-#include <stdint.h>
 
 VkExtent2D create_swapchain_extent(VkSurfaceCapabilitiesKHR capabilities,
                                    uint32_t framebuffer_width,
@@ -36,7 +35,6 @@ VkSwapchainKHR create_swapchain(VkSurfaceKHR surface, uint32_t image_count,
                                 VkSurfaceCapabilitiesKHR capabilities,
                                 VkPresentModeKHR present_mode,
                                 VkDevice logical_device) {
-
   VkSwapchainCreateInfoKHR create_info = {
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .surface = surface,
@@ -52,12 +50,10 @@ VkSwapchainKHR create_swapchain(VkSurfaceKHR surface, uint32_t image_count,
       .clipped = VK_TRUE,
       .oldSwapchain = VK_NULL_HANDLE,
   };
-
   VkSwapchainKHR swapchain = VK_NULL_HANDLE;
   if (vkCreateSwapchainKHR(logical_device, &create_info, NULL, &swapchain) !=
       VK_SUCCESS)
     PANIC(1, "Unable to create swapchain")
-
   return swapchain;
 }
 
@@ -71,7 +67,6 @@ VkImageView *create_swapchain_image_views(VkDevice logical_device,
                           VK_NULL_HANDLE);
   images = calloc(sizeof(VkImage), *image_count);
   vkGetSwapchainImagesKHR(logical_device, swapchain, image_count, images);
-
   /* Swap chain image views */
   VkImageView *image_views = calloc(sizeof(VkImageView), *image_count);
   for (size_t i = 0; i < *image_count; i++) {
@@ -95,4 +90,28 @@ VkImageView *create_swapchain_image_views(VkDevice logical_device,
       PANIC(1, "Failed to create image view")
   }
   return image_views;
+}
+
+VkFramebuffer *create_swapchain_framebuffers(uint32_t count,
+                                             VkImageView *image_views,
+                                             VkRenderPass render_pass,
+                                             VkExtent2D swapchain_extent,
+                                             VkDevice logical_device) {
+  VkFramebuffer *swapchain_framebuffers = calloc(sizeof(VkFramebuffer), count);
+  for (size_t i = 0; i < count; i++) {
+    VkImageView attachments[] = {image_views[i]};
+    VkFramebufferCreateInfo create_info = {
+        .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+        .renderPass = render_pass,
+        .attachmentCount = 1,
+        .pAttachments = attachments,
+        .width = swapchain_extent.width,
+        .height = swapchain_extent.height,
+        .layers = 1,
+    };
+    if (vkCreateFramebuffer(logical_device, &create_info, NULL,
+                            &swapchain_framebuffers[i]) != VK_SUCCESS)
+      PANIC(1, "Failed to create framebuffer")
+  }
+  return swapchain_framebuffers;
 }

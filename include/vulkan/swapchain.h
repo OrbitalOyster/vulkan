@@ -16,4 +16,10 @@ VkImageView *create_swapchain_image_views(VkDevice logical_device,
                                           VkSwapchainKHR swapchain,
                                           uint32_t *image_count,
                                           VkSurfaceFormatKHR surface_format);
+VkFramebuffer *create_swapchain_framebuffers(uint32_t count,
+                                             VkImageView *image_views,
+                                             VkRenderPass renderPass,
+                                             VkExtent2D swapchain_extent,
+                                             VkDevice logical_device);
+
 #endif
