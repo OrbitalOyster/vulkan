@@ -1,7 +1,6 @@
 #include "vulkan/instance.h"
 #include "debug.h"
 #include "hardcoded.h"
-#include <stdint.h>
 
 VkInstance create_vulkan_instance(uint32_t glfw_extension_count,
                                   const char **glfw_extension_names,

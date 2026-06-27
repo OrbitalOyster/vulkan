@@ -1,6 +1,5 @@
 #include "vulkan/shaders.h"
 #include "debug.h"
-#include <vulkan/vulkan_core.h>
 
 VkShaderModule create_shader_module(char *filename, VkDevice logical_device) {
   /* Open and read files */

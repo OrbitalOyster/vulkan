@@ -1,5 +1,4 @@
 #include "glfw.h"
-
 #include "debug.h"
 #include "hardcoded.h"
 #include <GLFW/glfw3.h>

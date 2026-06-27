@@ -1,6 +1,5 @@
 #include "vulkan/command_buffer.h"
 #include "debug.h"
-#include <vulkan/vulkan_core.h>
 
 VkCommandPool create_command_pool(uint32_t selected_queue_family_index,
                                   VkDevice logical_device) {

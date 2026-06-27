@@ -1,5 +1,4 @@
 #include "vulkan/queue.h"
-#include <stdint.h>
 #include <stdlib.h>
 
 /* Queue families */

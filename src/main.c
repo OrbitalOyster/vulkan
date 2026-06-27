@@ -109,7 +109,7 @@ int main(void) {
       create_command_buffer(command_pool, logical_device);
   INFO("Created command buffer")
 
-  VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+  VkClearValue clear_color = {{{0.1f, 0.2f, 0.3f, 1.0f}}};
 
   /* Semaphores */
   VkSemaphoreCreateInfo semaphoreInfo = {
@@ -173,7 +173,7 @@ int main(void) {
         .renderArea.offset = {0, 0},
         .renderArea.extent = swapchain_extent,
         .clearValueCount = 1,
-        .pClearValues = &clearColor,
+        .pClearValues = &clear_color,
     };
     vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info,
                          VK_SUBPASS_CONTENTS_INLINE);
@@ -182,6 +182,7 @@ int main(void) {
                       pipeline);
     vkCmdSetViewport(command_buffer, 0, 1, &viewport);
     vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
     vkCmdDraw(command_buffer, 3, 1, 0, 0);
     vkCmdEndRenderPass(command_buffer);
     if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS)

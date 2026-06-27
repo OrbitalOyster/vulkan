@@ -1,6 +1,5 @@
 #include "vulkan/pipeline.h"
 #include "debug.h"
-#include <vulkan/vulkan_core.h>
 
 VkPipelineLayout create_pipeline_layout(VkDevice logical_device) {
   VkPipelineLayoutCreateInfo pipeline_layout_create_info = {

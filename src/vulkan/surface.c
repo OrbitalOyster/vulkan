@@ -1,7 +1,5 @@
 #include "vulkan/surface.h"
 #include "debug.h"
-#include <stdint.h>
-#include <vulkan/vulkan_core.h>
 
 VkSurfaceKHR create_surface(VkInstance vulkan_instance, GLFWwindow *glfw_window,
                             VkPhysicalDevice physical_device,
