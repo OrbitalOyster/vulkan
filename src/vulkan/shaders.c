@@ -1,5 +1,6 @@
 #include "vulkan/shaders.h"
 #include "debug.h"
+#include <vulkan/vulkan_core.h>
 
 VkShaderModule create_shader_module(char *filename, VkDevice logical_device) {
   /* Open and read files */
@@ -51,4 +52,8 @@ create_shader_stages(VkShaderModule vertex_shader_module,
   shader_stages[1] = fragment_shader_stage_info;
 
   return shader_stages;
+}
+
+void destroy_shader_module(VkDevice logical_device, VkShaderModule module) {
+  vkDestroyShaderModule(logical_device, module, VK_NULL_HANDLE);
 }

@@ -1,5 +1,6 @@
 #include "vulkan/command_buffer.h"
 #include "debug.h"
+#include <vulkan/vulkan_core.h>
 
 VkCommandPool create_command_pool(uint32_t selected_queue_family_index,
                                   VkDevice logical_device) {
@@ -30,4 +31,8 @@ VkCommandBuffer create_command_buffer(VkCommandPool command_pool,
     PANIC(1, "Unable to allocate command buffers")
 
   return command_buffer;
+}
+
+void destroy_command_pool(VkDevice logical_device, VkCommandPool command_pool) {
+  vkDestroyCommandPool(logical_device, command_pool, VK_NULL_HANDLE);
 }

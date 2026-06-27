@@ -3,6 +3,7 @@
 
 #include <vulkan/vulkan_core.h>
 
+/* Constructors */
 VkExtent2D create_swapchain_extent(VkSurfaceCapabilitiesKHR capabilities,
                                    uint32_t framebuffer_width,
                                    uint32_t framebuffer_height);
@@ -21,5 +22,10 @@ VkFramebuffer *create_swapchain_framebuffers(uint32_t count,
                                              VkRenderPass renderPass,
                                              VkExtent2D swapchain_extent,
                                              VkDevice logical_device);
+
+/* Destructors */
+
+void destroy_swapchain_buffer(VkDevice logical_device, VkFramebuffer framebuffer);
+void destroy_swapchain(VkDevice logical_device, VkSwapchainKHR swapchain);
 
 #endif

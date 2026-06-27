@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vulkan/vulkan_core.h>
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
@@ -95,9 +96,12 @@ int main(void) {
       .extent = swapchain_extent,
   };
 
-  VkPipeline graphics_pipeline = create_graphics_pipeline(
-      &viewport, &scissor, logical_device, shader_stages, render_pass);
-  INFO("Created graphics pipeline")
+  VkPipelineLayout pipeline_layout = create_pipeline_layout(logical_device);
+
+  VkPipeline pipeline =
+      create_pipeline(&viewport, &scissor, logical_device, shader_stages,
+                      pipeline_layout, render_pass);
+  INFO("Created pipeline")
 
   VkCommandPool command_pool =
       create_command_pool(selected_queue_family_index, logical_device);
@@ -175,8 +179,7 @@ int main(void) {
     };
     vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      graphics_pipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
     vkCmdDraw(commandBuffer, 3, 1, 0, 0);
@@ -226,20 +229,19 @@ int main(void) {
   INFO("Starting cleanup")
   vkDestroySemaphore(logical_device, imageAvailableSemaphore, VK_NULL_HANDLE);
   vkDestroySemaphore(logical_device, renderFinishedSemaphore, VK_NULL_HANDLE);
-  // vkDestroyCommandPool(logical_device, commandPool, NULL);
+  destroy_command_pool(logical_device, command_pool);
   vkDestroyFence(logical_device, inFlightFence, VK_NULL_HANDLE);
   for (uint32_t i = 0; i < image_count; i++)
-    vkDestroyFramebuffer(logical_device, swapchain_framebuffers[i],
-                         VK_NULL_HANDLE);
-  vkDestroyPipeline(logical_device, graphics_pipeline, VK_NULL_HANDLE);
-  // vkDestroyPipelineLayout(logical_device, pipelineLayout, NULL);
-  vkDestroyRenderPass(logical_device, render_pass, VK_NULL_HANDLE);
-  vkDestroyShaderModule(logical_device, vertex_shader_module, VK_NULL_HANDLE);
-  vkDestroyShaderModule(logical_device, fragment_shader_module, VK_NULL_HANDLE);
-  for (size_t i = 0; i < image_count; i++)
-    vkDestroyImageView(logical_device, image_views[i], VK_NULL_HANDLE);
-  vkDestroySwapchainKHR(logical_device, swapchain, VK_NULL_HANDLE);
-  vkDestroyDevice(logical_device, VK_NULL_HANDLE);
+    destroy_swapchain_buffer(logical_device, swapchain_framebuffers[i]);
+  destroy_pipeline(logical_device, pipeline);
+  destroy_render_pass(logical_device, render_pass);
+  destroy_pipeline_layout(logical_device, pipeline_layout);
+  destroy_shader_module(logical_device, vertex_shader_module);
+  destroy_shader_module(logical_device, fragment_shader_module);
+  //for (size_t i = 0; i < image_count; i++)
+  //  vkDestroyImageView(logical_device, image_views[i], VK_NULL_HANDLE);
+  destroy_swapchain(logical_device, swapchain);
+  //vkDestroyDevice(logical_device, VK_NULL_HANDLE);
   // vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
   INFO("Cleanup complete")
 

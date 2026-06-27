@@ -1,5 +1,21 @@
 #include "vulkan/pipeline.h"
 #include "debug.h"
+#include <vulkan/vulkan_core.h>
+
+VkPipelineLayout create_pipeline_layout(VkDevice logical_device) {
+  VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .setLayoutCount = 0,
+      .pSetLayouts = VK_NULL_HANDLE,
+      .pushConstantRangeCount = 0,
+      .pPushConstantRanges = VK_NULL_HANDLE,
+  };
+  VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
+  if (vkCreatePipelineLayout(logical_device, &pipeline_layout_create_info,
+                             VK_NULL_HANDLE, &pipeline_layout) != VK_SUCCESS)
+    PANIC(1, "Failed to create pipeline layout")
+  return pipeline_layout;
+}
 
 VkRenderPass create_render_pass(VkSurfaceFormatKHR surface_format,
                                 VkDevice logical_device) {
@@ -53,9 +69,11 @@ VkRenderPass create_render_pass(VkSurfaceFormatKHR surface_format,
   return render_pass;
 }
 
-VkPipeline create_graphics_pipeline(
-    VkViewport *viewport, VkRect2D *scissor, VkDevice logical_device,
-    VkPipelineShaderStageCreateInfo *shader_stages, VkRenderPass render_pass) {
+VkPipeline create_pipeline(VkViewport *viewport, VkRect2D *scissor,
+                           VkDevice logical_device,
+                           VkPipelineShaderStageCreateInfo *shader_stages,
+                           VkPipelineLayout pipeline_layout,
+                           VkRenderPass render_pass) {
 
   VkPipelineVertexInputStateCreateInfo vertex_input_state = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -138,19 +156,6 @@ VkPipeline create_graphics_pipeline(
       .pDynamicStates = dynamic_states,
   };
 
-  VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-      .setLayoutCount = 0,
-      .pSetLayouts = VK_NULL_HANDLE,
-      .pushConstantRangeCount = 0,
-      .pPushConstantRanges = VK_NULL_HANDLE,
-  };
-
-  VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
-  if (vkCreatePipelineLayout(logical_device, &pipeline_layout_create_info,
-                             VK_NULL_HANDLE, &pipeline_layout) != VK_SUCCESS)
-    PANIC(1, "Failed to create pipeline layout")
-
   VkGraphicsPipelineCreateInfo pipeline_create_info = {
       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
       .stageCount = 2,
@@ -178,4 +183,17 @@ VkPipeline create_graphics_pipeline(
     PANIC(1, "Failed to create graphics pipeline")
 
   return graphics_pipeline;
+}
+
+void destroy_pipeline_layout(VkDevice logical_device,
+                             VkPipelineLayout pipeline_layout) {
+  vkDestroyPipelineLayout(logical_device, pipeline_layout, VK_NULL_HANDLE);
+}
+
+void destroy_render_pass(VkDevice logical_device, VkRenderPass render_pass) {
+  vkDestroyRenderPass(logical_device, render_pass, VK_NULL_HANDLE);
+}
+
+void destroy_pipeline(VkDevice logical_device, VkPipeline pipeline) {
+  vkDestroyPipeline(logical_device, pipeline, VK_NULL_HANDLE);
 }
