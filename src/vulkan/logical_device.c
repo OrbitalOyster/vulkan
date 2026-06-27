@@ -3,7 +3,6 @@
 #include "hardcoded.h"
 #include <stdbool.h>
 #include <string.h>
-#include <vulkan/vulkan_core.h>
 
 /* Creates logical device */
 VkDevice create_logical_device(VkPhysicalDevice physical_device,
@@ -14,7 +13,6 @@ VkDevice create_logical_device(VkPhysicalDevice physical_device,
   vkEnumerateDeviceExtensionProperties(physical_device, VK_NULL_HANDLE,
                                        &available_extension_count,
                                        VK_NULL_HANDLE);
-  // INFOF("Available extensions: %u", available_extension_count)
   VkExtensionProperties *available_extensions =
       calloc(sizeof(VkExtensionProperties), available_extension_count);
   vkEnumerateDeviceExtensionProperties(physical_device, VK_NULL_HANDLE,
@@ -62,4 +60,8 @@ VkDevice create_logical_device(VkPhysicalDevice physical_device,
     PANIC(1, "Unable to create Vulkan logical device")
 
   return logical_device;
+}
+
+void destroy_logical_device(VkDevice logical_device) {
+  vkDestroyDevice(logical_device, VK_NULL_HANDLE);
 }

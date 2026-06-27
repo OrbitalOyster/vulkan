@@ -80,7 +80,7 @@ int main(void) {
   INFO("Created swapchain image views")
   VkFramebuffer *swapchain_framebuffers = create_swapchain_framebuffers(
       image_count, image_views, render_pass, swapchain_extent, logical_device);
-  INFOF("Created %u framebuffers", image_count)
+  INFO("Created framebuffers")
 
   VkViewport viewport = {
       .x = 0.0f,
@@ -105,7 +105,7 @@ int main(void) {
 
   VkCommandPool command_pool =
       create_command_pool(selected_queue_family_index, logical_device);
-  VkCommandBuffer commandBuffer =
+  VkCommandBuffer command_buffer =
       create_command_buffer(command_pool, logical_device);
   INFO("Created command buffer")
 
@@ -135,14 +135,14 @@ int main(void) {
     PANIC(1, "Failed to create semaphores")
 
   /* Graphics queue */
-  VkQueue graphicsQueue;
+  VkQueue graphics_queue;
   vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
-                   &graphicsQueue);
+                   &graphics_queue);
 
   /* Present queue */
-  VkQueue presentQueue;
+  VkQueue present_queue;
   vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
-                   &presentQueue);
+                   &present_queue);
 
   while (!glfwWindowShouldClose(glfw_window)) {
     glfwPollEvents();
@@ -153,22 +153,20 @@ int main(void) {
     uint32_t imageIndex;
     vkAcquireNextImageKHR(logical_device, swapchain, UINT64_MAX,
                           imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-    vkResetCommandBuffer(commandBuffer, 0);
+    vkResetCommandBuffer(command_buffer, 0);
 
     // recordCommandBuffer
 
-    VkCommandBufferBeginInfo commandBufferBeginInfo = {
+    VkCommandBufferBeginInfo command_buffer_begin_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = 0,
         .pInheritanceInfo = VK_NULL_HANDLE,
     };
-    if (vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo) ==
-        VK_SUCCESS) {
-      // INFO("Command buffer start")
-    } else
+    if (vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) !=
+        VK_SUCCESS)
       PANIC(1, "Unable to start recording command buffer")
 
-    VkRenderPassBeginInfo renderPassBeginInfo = {
+    VkRenderPassBeginInfo render_pass_begin_info = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass = render_pass,
         .framebuffer = swapchain_framebuffers[imageIndex],
@@ -177,18 +175,17 @@ int main(void) {
         .clearValueCount = 1,
         .pClearValues = &clearColor,
     };
-    vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo,
+    vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info,
                          VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-    vkCmdEndRenderPass(commandBuffer);
-    if (vkEndCommandBuffer(commandBuffer) == VK_SUCCESS) {
-      // INFO("Command buffer end")
-    } else {
+
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipeline);
+    vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+    vkCmdDraw(command_buffer, 3, 1, 0, 0);
+    vkCmdEndRenderPass(command_buffer);
+    if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS)
       PANIC(1, "Failed to record command buffer")
-    }
     // ----------------------------------------------
 
     /* Submit command buffer */
@@ -196,18 +193,18 @@ int main(void) {
     VkPipelineStageFlags waitStages[] = {
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
-    VkSubmitInfo submitInfo = {
+    VkSubmitInfo submit_command_buffer_info = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = waitSemaphores,
         .pWaitDstStageMask = waitStages,
         .commandBufferCount = 1,
-        .pCommandBuffers = &commandBuffer,
+        .pCommandBuffers = &command_buffer,
         .signalSemaphoreCount = 1,
         .pSignalSemaphores = signalSemaphores,
     };
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) !=
-        VK_SUCCESS)
+    if (vkQueueSubmit(graphics_queue, 1, &submit_command_buffer_info,
+                      inFlightFence) != VK_SUCCESS)
       PANIC(1, "Failed to submit draw command buffer")
 
     /* Present */
@@ -221,7 +218,7 @@ int main(void) {
         .pResults = VK_NULL_HANDLE,
     };
     /* Ta-da */
-    vkQueuePresentKHR(presentQueue, &present_info);
+    vkQueuePresentKHR(present_queue, &present_info);
   }
 
   vkDeviceWaitIdle(logical_device);
@@ -233,16 +230,15 @@ int main(void) {
   vkDestroyFence(logical_device, inFlightFence, VK_NULL_HANDLE);
   for (uint32_t i = 0; i < image_count; i++)
     destroy_swapchain_buffer(logical_device, swapchain_framebuffers[i]);
+  for (size_t i = 0; i < image_count; i++)
+    destroy_swapchain_image_views(logical_device, image_views[i]);
   destroy_pipeline(logical_device, pipeline);
   destroy_render_pass(logical_device, render_pass);
   destroy_pipeline_layout(logical_device, pipeline_layout);
   destroy_shader_module(logical_device, vertex_shader_module);
   destroy_shader_module(logical_device, fragment_shader_module);
-  //for (size_t i = 0; i < image_count; i++)
-  //  vkDestroyImageView(logical_device, image_views[i], VK_NULL_HANDLE);
   destroy_swapchain(logical_device, swapchain);
-  //vkDestroyDevice(logical_device, VK_NULL_HANDLE);
-  // vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, NULL);
+  destroy_logical_device(logical_device);
   INFO("Cleanup complete")
 
   return EXIT_SUCCESS;

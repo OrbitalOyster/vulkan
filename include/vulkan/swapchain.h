@@ -25,7 +25,10 @@ VkFramebuffer *create_swapchain_framebuffers(uint32_t count,
 
 /* Destructors */
 
-void destroy_swapchain_buffer(VkDevice logical_device, VkFramebuffer framebuffer);
+void destroy_swapchain_buffer(VkDevice logical_device,
+                              VkFramebuffer framebuffer);
+void destroy_swapchain_image_views(VkDevice logical_device,
+                                   VkImageView image_view);
 void destroy_swapchain(VkDevice logical_device, VkSwapchainKHR swapchain);
 
 #endif

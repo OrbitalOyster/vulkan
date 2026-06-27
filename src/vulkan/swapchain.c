@@ -122,6 +122,11 @@ void destroy_swapchain_buffer(VkDevice logical_device,
   vkDestroyFramebuffer(logical_device, framebuffer, VK_NULL_HANDLE);
 }
 
+void destroy_swapchain_image_views(VkDevice logical_device,
+                                   VkImageView image_view) {
+  vkDestroyImageView(logical_device, image_view, VK_NULL_HANDLE);
+}
+
 void destroy_swapchain(VkDevice logical_device, VkSwapchainKHR swapchain) {
   vkDestroySwapchainKHR(logical_device, swapchain, VK_NULL_HANDLE);
 }

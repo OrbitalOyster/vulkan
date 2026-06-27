@@ -5,4 +5,6 @@
 
 VkDevice create_logical_device(VkPhysicalDevice physical_device, uint32_t selected_queue_family_index);
 
+void destroy_logical_device(VkDevice logical_device);
+
 #endif
