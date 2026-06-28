@@ -1,5 +1,6 @@
 #include "vulkan/pipeline.h"
 #include "debug.h"
+#include <vulkan/vulkan_core.h>
 
 VkPipelineLayout create_pipeline_layout(VkDevice logical_device) {
   VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
@@ -182,6 +183,33 @@ VkPipeline create_pipeline(VkViewport *viewport, VkRect2D *scissor,
     PANIC(1, "Failed to create graphics pipeline")
 
   return graphics_pipeline;
+}
+
+void begin_render_pass(VkRenderPass render_pass, VkFramebuffer framebuffer,
+                       VkExtent2D extent, VkCommandBuffer command_buffer,
+                       VkPipeline pipeline, VkViewport *viewport,
+                       VkRect2D *scissor) {
+
+  VkClearValue clear_color = {{{0.1f, 0.2f, 0.3f, 1.0f}}};
+
+  VkRenderPassBeginInfo render_pass_begin_info = {
+      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+      .renderPass = render_pass,
+      .framebuffer = framebuffer,
+      .renderArea.offset = {0, 0},
+      .renderArea.extent = extent,
+      .clearValueCount = 1,
+      .pClearValues = &clear_color,
+  };
+  vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info,
+                       VK_SUBPASS_CONTENTS_INLINE);
+  vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+  vkCmdSetViewport(command_buffer, 0, 1, viewport);
+  vkCmdSetScissor(command_buffer, 0, 1, scissor);
+}
+
+void end_render_pass(VkCommandBuffer command_buffer) {
+  vkCmdEndRenderPass(command_buffer);
 }
 
 void destroy_pipeline_layout(VkDevice logical_device,

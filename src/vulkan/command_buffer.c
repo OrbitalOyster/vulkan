@@ -1,5 +1,6 @@
 #include "vulkan/command_buffer.h"
 #include "debug.h"
+#include <vulkan/vulkan_core.h>
 
 VkCommandPool create_command_pool(uint32_t selected_queue_family_index,
                                   VkDevice logical_device) {
@@ -30,6 +31,22 @@ VkCommandBuffer create_command_buffer(VkCommandPool command_pool,
     PANIC(1, "Unable to allocate command buffers")
 
   return command_buffer;
+}
+
+void begin_command_buffer(VkCommandBuffer command_buffer) {
+  vkResetCommandBuffer(command_buffer, 0);
+  VkCommandBufferBeginInfo command_buffer_begin_info = {
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      .flags = 0,
+      .pInheritanceInfo = VK_NULL_HANDLE,
+  };
+  if (vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) !=
+      VK_SUCCESS)
+    PANIC(1, "Unable to start recording command buffer")
+}
+void end_command_buffer(VkCommandBuffer command_buffer) {
+  if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS)
+    PANIC(1, "Failed to record command buffer")
 }
 
 void destroy_command_pool(VkDevice logical_device, VkCommandPool command_pool) {

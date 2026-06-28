@@ -13,6 +13,14 @@ VkPipeline create_pipeline(VkViewport *viewport, VkRect2D *scissor,
                            VkPipelineShaderStageCreateInfo *shader_stages,
                            VkPipelineLayout pipeline_layout,
                            VkRenderPass render_pass);
+
+void begin_render_pass(VkRenderPass render_pass, VkFramebuffer framebuffer,
+                       VkExtent2D extent, VkCommandBuffer command_buffer,
+                       VkPipeline pipeline, VkViewport *viewport,
+                       VkRect2D *scissor);
+
+void end_render_pass(VkCommandBuffer command_buffer);
+
 /* Destructors */
 
 void destroy_pipeline_layout(VkDevice logical_device,
