@@ -14,10 +14,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <vulkan/vulkan_core.h>
-
-#define MAX_FRAMES_IN_FLIGHT 2
 
 int main(void) {
   init_glfw();
@@ -98,7 +95,6 @@ int main(void) {
   };
 
   VkPipelineLayout pipeline_layout = create_pipeline_layout(logical_device);
-
   VkPipeline pipeline =
       create_pipeline(&viewport, &scissor, logical_device, shader_stages,
                       pipeline_layout, render_pass);
@@ -106,23 +102,18 @@ int main(void) {
 
   VkCommandPool command_pool =
       create_command_pool(selected_queue_family_index, logical_device);
-  VkCommandBuffer command_buffer =
-      create_command_buffer(command_pool, logical_device);
-  INFO("Created command buffer")
 
-  /* Semaphores */
-  VkFenceCreateInfo fence_create_info = {
-      .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-      .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-  };
+  // VkCommandBuffer command_buffer =
+  //     create_command_buffer(command_pool, logical_device);
+  // INFO("Created command buffer")
 
-  VkSemaphore image_available_semaphore = create_semaphore(logical_device);
-  VkSemaphore render_finished_semaphore = create_semaphore(logical_device);
-  VkFence in_flight_fence;
+  //  VkSemaphore image_available_semaphore = create_semaphore(logical_device);
+  //  VkSemaphore render_finished_semaphore = create_semaphore(logical_device);
+  //  VkFence in_flight_fence;
 
-  if (vkCreateFence(logical_device, &fence_create_info, VK_NULL_HANDLE,
-                    &in_flight_fence) != VK_SUCCESS)
-    PANIC(1, "Failed to create semaphores")
+  // if (vkCreateFence(logical_device, &fence_create_info, VK_NULL_HANDLE,
+  //                   &in_flight_fence) != VK_SUCCESS)
+  //   PANIC(1, "Failed to create semaphores")
 
   /* Graphics queue */
   VkQueue graphics_queue;
@@ -134,53 +125,73 @@ int main(void) {
   vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
                    &present_queue);
 
+  VkCommandBuffer *command_buffers =
+      calloc(sizeof(VkCommandBuffer), image_count);
+  VkSemaphore *image_available_semaphores =
+      calloc(sizeof(VkSemaphore), image_count);
+  VkSemaphore *render_finished_semaphores =
+      calloc(sizeof(VkSemaphore), image_count);
+  VkFence *fences = calloc(sizeof(VkFence), image_count);
+
+  /* Create sync objects */
+  for (uint32_t i = 0; i < image_count; i++) {
+    command_buffers[i] = create_command_buffer(command_pool, logical_device);
+    image_available_semaphores[i] = create_semaphore(logical_device);
+    render_finished_semaphores[i] = create_semaphore(logical_device);
+    fences[i] = create_fence(logical_device);
+  }
+
+  uint32_t current_frame = 0;
+  uint32_t frame_to_render = 0;
+
   while (!glfwWindowShouldClose(glfw_window)) {
     glfwPollEvents();
 
     /* Draw frame */
-    vkWaitForFences(logical_device, 1, &in_flight_fence, VK_TRUE, UINT64_MAX);
-    vkResetFences(logical_device, 1, &in_flight_fence);
+    frame_to_render = current_frame % image_count;
+
+    vkWaitForFences(logical_device, 1, &fences[frame_to_render], VK_TRUE,
+                    UINT64_MAX);
+    vkResetFences(logical_device, 1, &fences[frame_to_render]);
 
     uint32_t imageIndex;
     vkAcquireNextImageKHR(logical_device, swapchain, UINT64_MAX,
-                          image_available_semaphore, VK_NULL_HANDLE,
-                          &imageIndex);
+                          image_available_semaphores[frame_to_render],
+                          VK_NULL_HANDLE, &imageIndex);
 
-    begin_command_buffer(command_buffer);
+    begin_command_buffer(command_buffers[frame_to_render]);
     begin_render_pass(render_pass, swapchain_framebuffers[imageIndex],
-                      swapchain_extent, command_buffer, pipeline, &viewport,
-                      &scissor);
+                      swapchain_extent, command_buffers[frame_to_render],
+                      pipeline, &viewport, &scissor);
 
-    vkCmdDraw(command_buffer, 3, 1, 0, 0);
+    vkCmdDraw(command_buffers[frame_to_render], 3, 1, 0, 0);
 
-    end_render_pass(command_buffer);
-    end_command_buffer(command_buffer);
+    end_render_pass(command_buffers[frame_to_render]);
+    end_command_buffer(command_buffers[frame_to_render]);
 
     /* Submit command buffer */
-    VkSemaphore wait_semaphores[] = {image_available_semaphore};
     VkPipelineStageFlags wait_stages[] = {
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-    VkSemaphore signal_semaphores[] = {render_finished_semaphore};
 
     VkSubmitInfo submit_command_buffer_info = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = wait_semaphores,
+        .pWaitSemaphores = &image_available_semaphores[frame_to_render],
         .pWaitDstStageMask = wait_stages,
         .commandBufferCount = 1,
-        .pCommandBuffers = &command_buffer,
+        .pCommandBuffers = &command_buffers[frame_to_render],
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = signal_semaphores,
+        .pSignalSemaphores = &render_finished_semaphores[frame_to_render],
     };
     if (vkQueueSubmit(graphics_queue, 1, &submit_command_buffer_info,
-                      in_flight_fence) != VK_SUCCESS)
+                      fences[frame_to_render]) != VK_SUCCESS)
       PANIC(1, "Failed to submit draw command buffer")
 
     /* Present */
     VkPresentInfoKHR present_info = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = signal_semaphores,
+        .pWaitSemaphores = &render_finished_semaphores[frame_to_render],
         .swapchainCount = 1,
         .pSwapchains = &swapchain,
         .pImageIndices = &imageIndex,
@@ -188,19 +199,20 @@ int main(void) {
     };
     /* Ta-da */
     vkQueuePresentKHR(present_queue, &present_info);
+    current_frame++;
   }
 
   vkDeviceWaitIdle(logical_device);
 
   INFO("Starting cleanup")
-  vkDestroySemaphore(logical_device, image_available_semaphore, VK_NULL_HANDLE);
-  vkDestroySemaphore(logical_device, render_finished_semaphore, VK_NULL_HANDLE);
-  vkDestroyFence(logical_device, in_flight_fence, VK_NULL_HANDLE);
   destroy_command_pool(logical_device, command_pool);
-  for (uint32_t i = 0; i < image_count; i++)
+  for (uint32_t i = 0; i < image_count; i++) {
+    destroy_semaphore(logical_device, image_available_semaphores[i]);
+    destroy_semaphore(logical_device, render_finished_semaphores[i]);
+    destroy_fence(logical_device, fences[i]);
     destroy_swapchain_buffer(logical_device, swapchain_framebuffers[i]);
-  for (size_t i = 0; i < image_count; i++)
     destroy_swapchain_image_views(logical_device, image_views[i]);
+  }
   destroy_pipeline(logical_device, pipeline);
   destroy_render_pass(logical_device, render_pass);
   destroy_pipeline_layout(logical_device, pipeline_layout);
