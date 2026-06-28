@@ -13,15 +13,21 @@ void init_glfw(void) {
     PANIC(1, "No Vulkan support")
 }
 
+void on_window_resize(struct GLFWwindow * window, int width, int height) {
+    if (window)
+        INFOF("Resized %ix%i", width, height);
+}
+
 /* Creates GLFW window */
 GLFWwindow *create_window(void) {
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+  glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
   GLFWwindow *window =
       glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, NULL, NULL);
   if (!window)
     PANIC(1, "Unable to create GLFW window")
   glfwMakeContextCurrent(window);
+  glfwSetFramebufferSizeCallback(window, on_window_resize);
   return window;
 }
 

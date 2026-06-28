@@ -103,18 +103,6 @@ int main(void) {
   VkCommandPool command_pool =
       create_command_pool(selected_queue_family_index, logical_device);
 
-  // VkCommandBuffer command_buffer =
-  //     create_command_buffer(command_pool, logical_device);
-  // INFO("Created command buffer")
-
-  //  VkSemaphore image_available_semaphore = create_semaphore(logical_device);
-  //  VkSemaphore render_finished_semaphore = create_semaphore(logical_device);
-  //  VkFence in_flight_fence;
-
-  // if (vkCreateFence(logical_device, &fence_create_info, VK_NULL_HANDLE,
-  //                   &in_flight_fence) != VK_SUCCESS)
-  //   PANIC(1, "Failed to create semaphores")
-
   /* Graphics queue */
   VkQueue graphics_queue;
   vkGetDeviceQueue(logical_device, selected_queue_family_index, 0,
