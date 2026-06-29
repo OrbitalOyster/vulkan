@@ -1,9 +1,16 @@
 #include "vulkan/swapchain.h"
 #include "debug.h"
+#include <stdint.h>
 
-VkExtent2D create_swapchain_extent(VkSurfaceCapabilitiesKHR capabilities,
-                                   uint32_t framebuffer_width,
-                                   uint32_t framebuffer_height) {
+VkExtent2D create_swapchain_extent(GLFWwindow *glfw_window,
+                                   VkSurfaceCapabilitiesKHR capabilities
+
+) {
+
+  int w, h;
+  glfwGetFramebufferSize(glfw_window, &w, &h);
+  uint32_t framebuffer_width = w, framebuffer_height = h;
+
   /* TODO: Wayland will return 0xFFFFFFFF on both */
   if (capabilities.currentExtent.width == framebuffer_width ||
       capabilities.currentExtent.height == framebuffer_height)
@@ -12,19 +19,15 @@ VkExtent2D create_swapchain_extent(VkSurfaceCapabilitiesKHR capabilities,
       .width = framebuffer_width,
       .height = framebuffer_height,
   };
-  /* TODO: Makes no sense */
   extent.width = framebuffer_width > capabilities.maxImageExtent.width
                      ? capabilities.maxImageExtent.width
                      : framebuffer_width;
-  // extent.width = framebuffer_width < capabilities.minImageExtent.width
-  //                    ? capabilities.minImageExtent.width
-  //                    : framebuffer_height;
   extent.height = framebuffer_height > capabilities.maxImageExtent.height
                       ? capabilities.maxImageExtent.height
                       : framebuffer_height;
-  // extent.height = framebuffer_height < capabilities.minImageExtent.height
-  //                     ? capabilities.minImageExtent.height
-  //                     : framebuffer_height;
+
+  INFOF("Extent: %ux%u", extent.width, extent.height)
+
   return extent;
 }
 
@@ -116,16 +119,12 @@ VkFramebuffer *create_swapchain_framebuffers(uint32_t count,
   return swapchain_framebuffers;
 }
 
-void destroy_swapchain_buffer(VkDevice logical_device,
-                              VkFramebuffer framebuffer) {
-  vkDestroyFramebuffer(logical_device, framebuffer, VK_NULL_HANDLE);
-}
-
-void destroy_swapchain_image_views(VkDevice logical_device,
-                                   VkImageView image_view) {
-  vkDestroyImageView(logical_device, image_view, VK_NULL_HANDLE);
-}
-
-void destroy_swapchain(VkDevice logical_device, VkSwapchainKHR swapchain) {
+void destroy_swapchain(VkDevice logical_device, VkSwapchainKHR swapchain,
+                       VkFramebuffer *framebuffers, VkImageView *image_views,
+                       uint32_t image_count) {
   vkDestroySwapchainKHR(logical_device, swapchain, VK_NULL_HANDLE);
+  for (uint32_t i = 0; i < image_count; i++) {
+    vkDestroyFramebuffer(logical_device, framebuffers[i], VK_NULL_HANDLE);
+    vkDestroyImageView(logical_device, image_views[i], VK_NULL_HANDLE);
+  }
 }

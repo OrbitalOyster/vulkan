@@ -26,10 +26,10 @@ VkFence create_fence(VkDevice logical_device) {
   return fence;
 }
 
-void destroy_semaphore(VkDevice logical_device, VkSemaphore semaphore){
+void destroy_semaphore(VkDevice logical_device, VkSemaphore semaphore) {
   vkDestroySemaphore(logical_device, semaphore, VK_NULL_HANDLE);
 }
 
-void destroy_fence(VkDevice logical_device, VkFence fence){
+void destroy_fence(VkDevice logical_device, VkFence fence) {
   vkDestroyFence(logical_device, fence, VK_NULL_HANDLE);
 }

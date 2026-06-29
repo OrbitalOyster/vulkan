@@ -11,6 +11,7 @@
 #include "vulkan/surface.h"
 #include "vulkan/swapchain.h"
 #include "vulkan/validation_layers.h"
+#include <GLFW/glfw3.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -39,9 +40,7 @@ int main(void) {
   INFO("Created logical device");
   GLFWwindow *glfw_window = create_window();
   INFO("Created window")
-  uint32_t framebuffer_width = 0, framebuffer_height = 0;
-  get_framebuffer_size(glfw_window, &framebuffer_width, &framebuffer_height);
-  INFOF("GLFW framebuffer size: %u %u", framebuffer_width, framebuffer_height);
+
   VkSurfaceKHR surface =
       create_surface(vulkan_instance, glfw_window, physical_device,
                      selected_queue_family_index);
@@ -50,8 +49,9 @@ int main(void) {
       get_surface_capabilities(physical_device, surface);
   INFOF("Surface capabilities: %u %u", capabilities.currentExtent.width,
         capabilities.currentExtent.height)
-  VkExtent2D swapchain_extent = create_swapchain_extent(
-      capabilities, framebuffer_width, framebuffer_height);
+
+  VkExtent2D swapchain_extent =
+      create_swapchain_extent(glfw_window, capabilities);
   INFOF("Swapchain extent: %ux%u", swapchain_extent.width,
         swapchain_extent.height);
   uint32_t image_count = get_swapchain_image_count(capabilities);
@@ -59,18 +59,15 @@ int main(void) {
   VkSurfaceFormatKHR surface_format =
       get_surface_format(physical_device, surface);
   VkPresentModeKHR present_mode = get_present_mode(physical_device, surface);
+
   VkSwapchainKHR swapchain =
       create_swapchain(surface, image_count, surface_format, swapchain_extent,
                        capabilities, present_mode, logical_device);
+
   INFO("Created swapchain")
+
   /* TODO: Manage separate queues edge case */
-  VkShaderModule vertex_shader_module =
-      create_shader_module("shaders/vert.spv", logical_device);
-  VkShaderModule fragment_shader_module =
-      create_shader_module("shaders/frag.spv", logical_device);
-  VkPipelineShaderStageCreateInfo *shader_stages =
-      create_shader_stages(vertex_shader_module, fragment_shader_module);
-  INFO("Loaded shaders")
+
   VkRenderPass render_pass = create_render_pass(surface_format, logical_device);
   INFO("Created render pass")
   VkImageView *image_views = create_swapchain_image_views(
@@ -93,6 +90,14 @@ int main(void) {
       .offset = {0, 0},
       .extent = swapchain_extent,
   };
+
+  VkShaderModule vertex_shader_module =
+      create_shader_module("shaders/vert.spv", logical_device);
+  VkShaderModule fragment_shader_module =
+      create_shader_module("shaders/frag.spv", logical_device);
+  VkPipelineShaderStageCreateInfo *shader_stages =
+      create_shader_stages(vertex_shader_module, fragment_shader_module);
+  INFO("Loaded shaders")
 
   VkPipelineLayout pipeline_layout = create_pipeline_layout(logical_device);
   VkPipeline pipeline =
@@ -187,6 +192,32 @@ int main(void) {
     };
     /* Ta-da */
     vkQueuePresentKHR(present_queue, &present_info);
+
+    if (glfwGetKey(glfw_window, GLFW_KEY_R) == GLFW_PRESS) {
+
+      vkDeviceWaitIdle(logical_device);
+      INFO("Redraw!")
+      destroy_swapchain(logical_device, swapchain, swapchain_framebuffers,
+                        image_views, image_count);
+
+      swapchain_extent = create_swapchain_extent(glfw_window, capabilities);
+      swapchain = create_swapchain(surface, image_count, surface_format,
+                                   swapchain_extent, capabilities, present_mode,
+                                   logical_device);
+      INFO("Created swapchain")
+      image_views = create_swapchain_image_views(logical_device, swapchain,
+                                                 &image_count, surface_format);
+      INFO("Created swapchain image views")
+      swapchain_framebuffers =
+          create_swapchain_framebuffers(image_count, image_views, render_pass,
+                                        swapchain_extent, logical_device);
+      INFO("Created framebuffers")
+
+      viewport.width = swapchain_extent.width;
+      viewport.height = swapchain_extent.height;
+      scissor.extent = swapchain_extent;
+    }
+
     current_frame++;
   }
 
@@ -198,15 +229,14 @@ int main(void) {
     destroy_semaphore(logical_device, image_available_semaphores[i]);
     destroy_semaphore(logical_device, render_finished_semaphores[i]);
     destroy_fence(logical_device, fences[i]);
-    destroy_swapchain_buffer(logical_device, swapchain_framebuffers[i]);
-    destroy_swapchain_image_views(logical_device, image_views[i]);
   }
   destroy_pipeline(logical_device, pipeline);
   destroy_render_pass(logical_device, render_pass);
   destroy_pipeline_layout(logical_device, pipeline_layout);
   destroy_shader_module(logical_device, vertex_shader_module);
   destroy_shader_module(logical_device, fragment_shader_module);
-  destroy_swapchain(logical_device, swapchain);
+  destroy_swapchain(logical_device, swapchain, swapchain_framebuffers,
+                    image_views, image_count);
   destroy_logical_device(logical_device);
   INFO("Cleanup complete")
 
