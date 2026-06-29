@@ -3,6 +3,7 @@
 #include "hardcoded.h"
 #include <GLFW/glfw3.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 /* Inits GLFW */
 void init_glfw(void) {
@@ -13,9 +14,17 @@ void init_glfw(void) {
     PANIC(1, "No Vulkan support")
 }
 
-void on_window_resize(struct GLFWwindow * window, int width, int height) {
-    if (window)
-        INFOF("Resized %ix%i", width, height);
+void on_window_resize(struct GLFWwindow *window, int width, int height) {
+  if (window)
+    INFOF("Resized %ix%i", width, height)
+}
+
+void on_key(struct GLFWwindow *window, int key, int scancode, int action,
+            int mods) {
+  INFOF("Key press %i %i %i %i", key, scancode, action, mods)
+  if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE) {
+    glfwSetWindowShouldClose(window, 1);
+  }
 }
 
 /* Creates GLFW window */
@@ -28,6 +37,7 @@ GLFWwindow *create_window(void) {
     PANIC(1, "Unable to create GLFW window")
   glfwMakeContextCurrent(window);
   glfwSetFramebufferSizeCallback(window, on_window_resize);
+  glfwSetKeyCallback(window, on_key);
   return window;
 }
 
