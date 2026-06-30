@@ -10,23 +10,32 @@ struct swapchain_bundle {
   VkSurfaceFormatKHR surface_format;
   VkPresentModeKHR present_mode;
   VkSurfaceCapabilitiesKHR capabilities;
+  uint32_t image_count;
 
   VkExtent2D extent;
   VkViewport viewport;
   VkRect2D scissor;
 
   VkSwapchainKHR swapchain;
-  uint32_t image_count;
-  VkFramebuffer *framebuffers;
   VkImageView *image_views;
+  VkFramebuffer *framebuffers;
 };
 
 /* Constructors */
 
-struct swapchain_bundle
-create_swapchain_bundle(VkPhysicalDevice physical_device, VkSurfaceKHR surface,
-                        GLFWwindow *window, VkDevice logical_device,
-                        uint32_t image_count, VkRenderPass render_pass);
+struct swapchain_bundle *
+create_swapchain_bundle(VkPhysicalDevice physical_device,
+                        VkInstance vulkan_instance,
+                        uint32_t selected_queue_family_index,
+                        GLFWwindow *window, VkDevice logical_device);
+
+void create_swapchain_bundle_framebuffers(struct swapchain_bundle *bundle,
+                                          VkDevice logical_device,
+                                          VkRenderPass render_pass);
+
+void recreate_swapchain_bundle(struct swapchain_bundle *bundle,
+                               VkDevice logical_device,
+                               VkRenderPass render_pass);
 
 VkExtent2D create_swapchain_extent(GLFWwindow *glfw_window,
                                    VkSurfaceCapabilitiesKHR capabilities);
@@ -48,6 +57,9 @@ VkFramebuffer *create_swapchain_framebuffers(uint32_t count,
                                              VkDevice logical_device);
 
 /* Destructors */
+
+void destroy_swapchain_bundle(VkDevice logical_device,
+                              struct swapchain_bundle *bundle);
 
 void destroy_swapchain(VkDevice logical_device, VkSwapchainKHR swapchain,
                        VkFramebuffer *framebuffers, VkImageView *image_views,

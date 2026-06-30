@@ -8,7 +8,6 @@
 #include "vulkan/queue.h"
 #include "vulkan/semaphore.h"
 #include "vulkan/shaders.h"
-#include "vulkan/surface.h"
 #include "vulkan/swapchain.h"
 #include "vulkan/validation_layers.h"
 #include <GLFW/glfw3.h>
@@ -41,56 +40,20 @@ int main(void) {
   GLFWwindow *glfw_window = create_window();
   INFO("Created window")
 
-  VkSurfaceKHR surface =
-      create_surface(vulkan_instance, glfw_window, physical_device,
-                     selected_queue_family_index);
-  INFO("Created vulkan surface");
-  VkSurfaceCapabilitiesKHR capabilities =
-      get_surface_capabilities(physical_device, surface);
-  INFOF("Surface capabilities: %u %u", capabilities.currentExtent.width,
-        capabilities.currentExtent.height)
-
-  VkExtent2D swapchain_extent =
-      create_swapchain_extent(glfw_window, capabilities);
-  INFOF("Swapchain extent: %ux%u", swapchain_extent.width,
-        swapchain_extent.height);
-  uint32_t image_count = get_swapchain_image_count(capabilities);
-  INFOF("Swapchain image count: %u", image_count);
-
-  VkSurfaceFormatKHR surface_format =
-      get_surface_format(physical_device, surface);
-  VkPresentModeKHR present_mode = get_present_mode(physical_device, surface);
-
-  VkSwapchainKHR swapchain =
-      create_swapchain(surface, image_count, surface_format, swapchain_extent,
-                       capabilities, present_mode, logical_device);
-
+  struct swapchain_bundle *bundle = create_swapchain_bundle(
+      physical_device, vulkan_instance, selected_queue_family_index,
+      glfw_window, logical_device);
   INFO("Created swapchain")
 
-  /* TODO: Manage separate queues edge case */
+  uint32_t image_count = bundle->image_count;
 
-  VkRenderPass render_pass = create_render_pass(surface_format, logical_device);
+  VkRenderPass render_pass =
+      create_render_pass(bundle->surface_format, logical_device);
   INFO("Created render pass")
-  VkImageView *image_views = create_swapchain_image_views(
-      logical_device, swapchain, &image_count, surface_format);
-  INFO("Created swapchain image views")
-  VkFramebuffer *swapchain_framebuffers = create_swapchain_framebuffers(
-      image_count, image_views, render_pass, swapchain_extent, logical_device);
-  INFO("Created framebuffers")
 
-  VkViewport viewport = {
-      .x = 0.0f,
-      .y = 0.0f,
-      .width = swapchain_extent.width,
-      .height = swapchain_extent.height,
-      .minDepth = 0.0f,
-      .maxDepth = 1.0f,
-  };
+  create_swapchain_bundle_framebuffers(bundle, logical_device, render_pass);
 
-  VkRect2D scissor = {
-      .offset = {0, 0},
-      .extent = swapchain_extent,
-  };
+  /* TODO: Manage separate queues edge case */
 
   VkShaderModule vertex_shader_module =
       create_shader_module("shaders/vert.spv", logical_device);
@@ -102,8 +65,8 @@ int main(void) {
 
   VkPipelineLayout pipeline_layout = create_pipeline_layout(logical_device);
   VkPipeline pipeline =
-      create_pipeline(&viewport, &scissor, logical_device, shader_stages,
-                      pipeline_layout, render_pass);
+      create_pipeline(&bundle->viewport, &bundle->scissor, logical_device,
+                      shader_stages, pipeline_layout, render_pass);
   INFO("Created pipeline")
 
   VkCommandPool command_pool =
@@ -149,14 +112,14 @@ int main(void) {
     vkResetFences(logical_device, 1, &fences[frame_to_render]);
 
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(logical_device, swapchain, UINT64_MAX,
+    vkAcquireNextImageKHR(logical_device, bundle->swapchain, UINT64_MAX,
                           image_available_semaphores[frame_to_render],
                           VK_NULL_HANDLE, &imageIndex);
 
     begin_command_buffer(command_buffers[frame_to_render]);
-    begin_render_pass(render_pass, swapchain_framebuffers[imageIndex],
-                      swapchain_extent, command_buffers[frame_to_render],
-                      pipeline, &viewport, &scissor);
+    begin_render_pass(render_pass, bundle->framebuffers[imageIndex],
+                      bundle->extent, command_buffers[frame_to_render],
+                      pipeline, &bundle->viewport, &bundle->scissor);
 
     vkCmdDraw(command_buffers[frame_to_render], 3, 1, 0, 0);
 
@@ -187,7 +150,7 @@ int main(void) {
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &render_finished_semaphores[frame_to_render],
         .swapchainCount = 1,
-        .pSwapchains = &swapchain,
+        .pSwapchains = &bundle->swapchain,
         .pImageIndices = &imageIndex,
         .pResults = VK_NULL_HANDLE,
     };
@@ -195,27 +158,7 @@ int main(void) {
     vkQueuePresentKHR(present_queue, &present_info);
 
     if (glfwGetKey(glfw_window, GLFW_KEY_R) == GLFW_PRESS) {
-
-      vkDeviceWaitIdle(logical_device);
-      destroy_swapchain(logical_device, swapchain, swapchain_framebuffers,
-                        image_views, image_count);
-
-      swapchain_extent = create_swapchain_extent(glfw_window, capabilities);
-      swapchain = create_swapchain(surface, image_count, surface_format,
-                                   swapchain_extent, capabilities, present_mode,
-                                   logical_device);
-      INFO("Created swapchain")
-      image_views = create_swapchain_image_views(logical_device, swapchain,
-                                                 &image_count, surface_format);
-      INFO("Created swapchain image views")
-      swapchain_framebuffers =
-          create_swapchain_framebuffers(image_count, image_views, render_pass,
-                                        swapchain_extent, logical_device);
-      INFO("Created framebuffers")
-
-      viewport.width = swapchain_extent.width;
-      viewport.height = swapchain_extent.height;
-      scissor.extent = swapchain_extent;
+      recreate_swapchain_bundle(bundle, logical_device, render_pass);
     }
 
     current_frame++;
@@ -235,8 +178,7 @@ int main(void) {
   destroy_pipeline_layout(logical_device, pipeline_layout);
   destroy_shader_module(logical_device, vertex_shader_module);
   destroy_shader_module(logical_device, fragment_shader_module);
-  destroy_swapchain(logical_device, swapchain, swapchain_framebuffers,
-                    image_views, image_count);
+  destroy_swapchain_bundle(logical_device, bundle);
   destroy_logical_device(logical_device);
   INFO("Cleanup complete")
 
