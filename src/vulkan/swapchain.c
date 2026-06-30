@@ -55,27 +55,16 @@ create_swapchain_bundle(VkPhysicalDevice physical_device,
   result->scissor = scissor;
   result->image_count = image_count;
   result->image_views = image_views;
-  result->framebuffers = NULL;
   result->swapchain = swapchain;
 
   return result;
 }
 
-void create_swapchain_bundle_framebuffers(struct swapchain_bundle *bundle,
-                                          VkDevice logical_device,
-                                          VkRenderPass render_pass) {
-  VkFramebuffer *framebuffers = create_swapchain_framebuffers(
-      bundle->image_count, bundle->image_views, render_pass, bundle->extent,
-      logical_device);
-  bundle->framebuffers = framebuffers;
-}
-
 void recreate_swapchain_bundle(struct swapchain_bundle *bundle,
-                               VkDevice logical_device,
-                               VkRenderPass render_pass) {
+                               VkDevice logical_device) {
   vkDeviceWaitIdle(logical_device);
-  destroy_swapchain(logical_device, bundle->swapchain, bundle->framebuffers,
-                    bundle->image_views, bundle->image_count);
+  destroy_swapchain(logical_device, bundle->swapchain, bundle->image_views,
+                    bundle->image_count);
 
   bundle->extent =
       create_swapchain_extent(bundle->window, bundle->capabilities);
@@ -92,16 +81,13 @@ void recreate_swapchain_bundle(struct swapchain_bundle *bundle,
   bundle->image_views = create_swapchain_image_views(
       logical_device, bundle->swapchain, &bundle->image_count,
       bundle->surface_format);
-
-  bundle->framebuffers = create_swapchain_framebuffers(
-      bundle->image_count, bundle->image_views, render_pass, bundle->extent,
-      logical_device);
 }
 
 void destroy_swapchain_bundle(VkDevice logical_device,
                               struct swapchain_bundle *bundle) {
-  destroy_swapchain(logical_device, bundle->swapchain, bundle->framebuffers,
-                    bundle->image_views, bundle->image_count);
+  for (uint32_t i = 0; i < bundle->image_count; i++)
+    vkDestroyImageView(logical_device, bundle->image_views[i], VK_NULL_HANDLE);
+  vkDestroySwapchainKHR(logical_device, bundle->swapchain, VK_NULL_HANDLE);
 }
 
 VkExtent2D create_swapchain_extent(GLFWwindow *glfw_window,
@@ -219,11 +205,8 @@ VkFramebuffer *create_swapchain_framebuffers(uint32_t count,
 }
 
 void destroy_swapchain(VkDevice logical_device, VkSwapchainKHR swapchain,
-                       VkFramebuffer *framebuffers, VkImageView *image_views,
-                       uint32_t image_count) {
+                       VkImageView *image_views, uint32_t image_count) {
   vkDestroySwapchainKHR(logical_device, swapchain, VK_NULL_HANDLE);
-  for (uint32_t i = 0; i < image_count; i++) {
-    vkDestroyFramebuffer(logical_device, framebuffers[i], VK_NULL_HANDLE);
+  for (uint32_t i = 0; i < image_count; i++)
     vkDestroyImageView(logical_device, image_views[i], VK_NULL_HANDLE);
-  }
 }

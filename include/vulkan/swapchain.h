@@ -18,7 +18,6 @@ struct swapchain_bundle {
 
   VkSwapchainKHR swapchain;
   VkImageView *image_views;
-  VkFramebuffer *framebuffers;
 };
 
 /* Constructors */
@@ -29,13 +28,8 @@ create_swapchain_bundle(VkPhysicalDevice physical_device,
                         uint32_t selected_queue_family_index,
                         GLFWwindow *window, VkDevice logical_device);
 
-void create_swapchain_bundle_framebuffers(struct swapchain_bundle *bundle,
-                                          VkDevice logical_device,
-                                          VkRenderPass render_pass);
-
 void recreate_swapchain_bundle(struct swapchain_bundle *bundle,
-                               VkDevice logical_device,
-                               VkRenderPass render_pass);
+                               VkDevice logical_device);
 
 VkExtent2D create_swapchain_extent(GLFWwindow *glfw_window,
                                    VkSurfaceCapabilitiesKHR capabilities);
@@ -62,7 +56,6 @@ void destroy_swapchain_bundle(VkDevice logical_device,
                               struct swapchain_bundle *bundle);
 
 void destroy_swapchain(VkDevice logical_device, VkSwapchainKHR swapchain,
-                       VkFramebuffer *framebuffers, VkImageView *image_views,
-                       uint32_t image_count);
+                       VkImageView *image_views, uint32_t image_count);
 
 #endif

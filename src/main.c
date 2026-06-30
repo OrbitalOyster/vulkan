@@ -51,7 +51,9 @@ int main(void) {
       create_render_pass(bundle->surface_format, logical_device);
   INFO("Created render pass")
 
-  create_swapchain_bundle_framebuffers(bundle, logical_device, render_pass);
+  VkFramebuffer *framebuffers = create_swapchain_framebuffers(
+      bundle->image_count, bundle->image_views, render_pass, bundle->extent,
+      logical_device);
 
   /* TODO: Manage separate queues edge case */
 
@@ -117,9 +119,9 @@ int main(void) {
                           VK_NULL_HANDLE, &imageIndex);
 
     begin_command_buffer(command_buffers[frame_to_render]);
-    begin_render_pass(render_pass, bundle->framebuffers[imageIndex],
-                      bundle->extent, command_buffers[frame_to_render],
-                      pipeline, &bundle->viewport, &bundle->scissor);
+    begin_render_pass(render_pass, framebuffers[imageIndex], bundle->extent,
+                      command_buffers[frame_to_render], pipeline,
+                      &bundle->viewport, &bundle->scissor);
 
     vkCmdDraw(command_buffers[frame_to_render], 3, 1, 0, 0);
 
@@ -158,7 +160,13 @@ int main(void) {
     vkQueuePresentKHR(present_queue, &present_info);
 
     if (glfwGetKey(glfw_window, GLFW_KEY_R) == GLFW_PRESS) {
-      recreate_swapchain_bundle(bundle, logical_device, render_pass);
+      recreate_swapchain_bundle(bundle, logical_device);
+
+      for (uint32_t i = 0; i < image_count; i++)
+        vkDestroyFramebuffer(logical_device, framebuffers[i], VK_NULL_HANDLE);
+      framebuffers = create_swapchain_framebuffers(
+          bundle->image_count, bundle->image_views, render_pass, bundle->extent,
+          logical_device);
     }
 
     current_frame++;
@@ -172,6 +180,8 @@ int main(void) {
     destroy_semaphore(logical_device, image_available_semaphores[i]);
     destroy_semaphore(logical_device, render_finished_semaphores[i]);
     destroy_fence(logical_device, fences[i]);
+
+    vkDestroyFramebuffer(logical_device, framebuffers[i], VK_NULL_HANDLE);
   }
   destroy_pipeline(logical_device, pipeline);
   destroy_render_pass(logical_device, render_pass);
