@@ -4,7 +4,30 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan_core.h>
 
+struct swapchain_bundle {
+  GLFWwindow *window;
+  VkSurfaceKHR surface;
+  VkSurfaceFormatKHR surface_format;
+  VkPresentModeKHR present_mode;
+  VkSurfaceCapabilitiesKHR capabilities;
+
+  VkExtent2D extent;
+  VkViewport viewport;
+  VkRect2D scissor;
+
+  VkSwapchainKHR swapchain;
+  uint32_t image_count;
+  VkFramebuffer *framebuffers;
+  VkImageView *image_views;
+};
+
 /* Constructors */
+
+struct swapchain_bundle
+create_swapchain_bundle(VkPhysicalDevice physical_device, VkSurfaceKHR surface,
+                        GLFWwindow *window, VkDevice logical_device,
+                        uint32_t image_count, VkRenderPass render_pass);
+
 VkExtent2D create_swapchain_extent(GLFWwindow *glfw_window,
                                    VkSurfaceCapabilitiesKHR capabilities);
 

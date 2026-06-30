@@ -56,6 +56,7 @@ int main(void) {
         swapchain_extent.height);
   uint32_t image_count = get_swapchain_image_count(capabilities);
   INFOF("Swapchain image count: %u", image_count);
+
   VkSurfaceFormatKHR surface_format =
       get_surface_format(physical_device, surface);
   VkPresentModeKHR present_mode = get_present_mode(physical_device, surface);
@@ -196,7 +197,6 @@ int main(void) {
     if (glfwGetKey(glfw_window, GLFW_KEY_R) == GLFW_PRESS) {
 
       vkDeviceWaitIdle(logical_device);
-      INFO("Redraw!")
       destroy_swapchain(logical_device, swapchain, swapchain_framebuffers,
                         image_views, image_count);
 

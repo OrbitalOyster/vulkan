@@ -1,20 +1,108 @@
 #include "vulkan/swapchain.h"
 #include "debug.h"
+#include "vulkan/physical_device.h"
+#include "vulkan/surface.h"
 #include <stdint.h>
+#include <vulkan/vulkan_core.h>
+
+struct swapchain_bundle
+create_swapchain_bundle(VkPhysicalDevice physical_device, VkSurfaceKHR surface,
+                        GLFWwindow *window, VkDevice logical_device,
+                        uint32_t image_count, VkRenderPass render_pass) {
+
+  VkSurfaceCapabilitiesKHR capabilities =
+      get_surface_capabilities(physical_device, surface);
+
+  VkExtent2D extent = create_swapchain_extent(window, capabilities);
+
+  VkViewport viewport = {
+      .x = 0.0f,
+      .y = 0.0f,
+      .width = extent.width,
+      .height = extent.height,
+      .minDepth = 0.0f,
+      .maxDepth = 1.0f,
+  };
+
+  VkRect2D scissor = {
+      .offset = {0, 0},
+      .extent = extent,
+  };
+
+  VkSurfaceFormatKHR surface_format =
+      get_surface_format(physical_device, surface);
+
+  VkPresentModeKHR present_mode = get_present_mode(physical_device, surface);
+
+  VkSwapchainKHR swapchain =
+      create_swapchain(surface, image_count, surface_format, extent,
+                       capabilities, present_mode, logical_device);
+
+  VkImageView *image_views = create_swapchain_image_views(
+      logical_device, swapchain, &image_count, surface_format);
+
+  VkFramebuffer *framebuffers = create_swapchain_framebuffers(
+      image_count, image_views, render_pass, extent, logical_device);
+
+  struct swapchain_bundle result = {
+      .window = window,
+      .surface = surface,
+      .surface_format = surface_format,
+      .present_mode = present_mode,
+      .capabilities = capabilities,
+      .extent = extent,
+      .viewport = viewport,
+      .scissor = scissor,
+      .image_count = image_count,
+      .image_views = image_views,
+      .framebuffers = framebuffers,
+      .swapchain = swapchain,
+  };
+
+  return result;
+}
+
+void recreate_swapchain_bundle(struct swapchain_bundle *bundle,
+                               VkDevice logical_device,
+                               VkRenderPass render_pass) {
+  vkDeviceWaitIdle(logical_device);
+  destroy_swapchain(logical_device, bundle->swapchain, bundle->framebuffers,
+                    bundle->image_views, bundle->image_count);
+
+  bundle->extent =
+      create_swapchain_extent(bundle->window, bundle->capabilities);
+
+  bundle->viewport.width = bundle->extent.width;
+  bundle->viewport.height = bundle->extent.height;
+  bundle->scissor.extent = bundle->extent;
+
+  bundle->swapchain = create_swapchain(bundle->surface, bundle->image_count,
+                                       bundle->surface_format, bundle->extent,
+                                       bundle->capabilities,
+                                       bundle->present_mode, logical_device);
+
+  bundle->image_views = create_swapchain_image_views(
+      logical_device, bundle->swapchain, &bundle->image_count,
+      bundle->surface_format);
+
+  bundle->framebuffers = create_swapchain_framebuffers(
+      bundle->image_count, bundle->image_views, render_pass, bundle->extent,
+      logical_device);
+}
 
 VkExtent2D create_swapchain_extent(GLFWwindow *glfw_window,
                                    VkSurfaceCapabilitiesKHR capabilities
 
 ) {
-
+  /* Framebuffer size */
   int w, h;
   glfwGetFramebufferSize(glfw_window, &w, &h);
   uint32_t framebuffer_width = w, framebuffer_height = h;
-
   /* TODO: Wayland will return 0xFFFFFFFF on both */
   if (capabilities.currentExtent.width == framebuffer_width ||
       capabilities.currentExtent.height == framebuffer_height)
     return capabilities.currentExtent;
+  /* Resize if necessary */
   VkExtent2D extent = {
       .width = framebuffer_width,
       .height = framebuffer_height,
@@ -25,9 +113,6 @@ VkExtent2D create_swapchain_extent(GLFWwindow *glfw_window,
   extent.height = framebuffer_height > capabilities.maxImageExtent.height
                       ? capabilities.maxImageExtent.height
                       : framebuffer_height;
-
-  INFOF("Extent: %ux%u", extent.width, extent.height)
-
   return extent;
 }
 
