@@ -45,13 +45,30 @@ VkDevice create_logical_device(VkPhysicalDevice physical_device,
       .pQueuePriorities = &queue_priority,
   };
 
+  VkPhysicalDeviceVulkan12Features enabledVk12Features = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+      .descriptorIndexing = true,
+      .shaderSampledImageArrayNonUniformIndexing = true,
+      .descriptorBindingVariableDescriptorCount = true,
+      .runtimeDescriptorArray = true,
+      .bufferDeviceAddress = true};
+  VkPhysicalDeviceVulkan13Features enabledVk13Features = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+      .pNext = &enabledVk12Features,
+      .synchronization2 = true,
+      .dynamicRendering = true,
+  };
+  VkPhysicalDeviceFeatures enabledVk10Features = {.samplerAnisotropy = VK_TRUE};
+
   VkDeviceCreateInfo create_info = {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+      .pNext = &enabledVk13Features,
       .queueCreateInfoCount = 1,
       .pQueueCreateInfos = &device_queue_create_info,
       .ppEnabledLayerNames = VK_NULL_HANDLE,
       .enabledExtensionCount = REQUIRED_DEVICE_EXTENSION_COUNT,
       .ppEnabledExtensionNames = required_extension_names,
+      .pEnabledFeatures = &enabledVk10Features,
   };
 
   VkDevice logical_device = VK_NULL_HANDLE;

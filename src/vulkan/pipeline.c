@@ -72,8 +72,7 @@ VkRenderPass create_render_pass(VkSurfaceFormatKHR surface_format,
 VkPipeline create_pipeline(VkViewport *viewport, VkRect2D *scissor,
                            VkDevice logical_device,
                            VkPipelineShaderStageCreateInfo *shader_stages,
-                           VkPipelineLayout pipeline_layout,
-                           VkRenderPass render_pass) {
+                           VkPipelineLayout pipeline_layout) {
 
   VkPipelineVertexInputStateCreateInfo vertex_input_state = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -156,8 +155,16 @@ VkPipeline create_pipeline(VkViewport *viewport, VkRect2D *scissor,
       .pDynamicStates = dynamic_states,
   };
 
+  const VkFormat imageFormat = {VK_FORMAT_B8G8R8A8_SRGB};
+  VkPipelineRenderingCreateInfo renderingCI = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+      .colorAttachmentCount = 1,
+      .pColorAttachmentFormats = &imageFormat,
+  };
+
   VkGraphicsPipelineCreateInfo pipeline_create_info = {
       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+      .pNext = &renderingCI,
       .stageCount = 2,
       .pStages = shader_stages,
       .pVertexInputState = &vertex_input_state,
@@ -169,7 +176,7 @@ VkPipeline create_pipeline(VkViewport *viewport, VkRect2D *scissor,
       .pColorBlendState = &color_blend_state,
       .pDynamicState = &dynamic_state,
       .layout = pipeline_layout,
-      .renderPass = render_pass,
+      // .renderPass = render_pass,
       .subpass = 0,
       .basePipelineHandle = VK_NULL_HANDLE,
       .basePipelineIndex = -1,
@@ -185,17 +192,16 @@ VkPipeline create_pipeline(VkViewport *viewport, VkRect2D *scissor,
   return graphics_pipeline;
 }
 
-void begin_render_pass(VkRenderPass render_pass, VkFramebuffer framebuffer,
-                       VkExtent2D extent, VkCommandBuffer command_buffer,
-                       VkPipeline pipeline, VkViewport *viewport,
-                       VkRect2D *scissor) {
+/*
+void begin_render_pass(VkRenderPass render_pass, VkExtent2D extent,
+                       VkCommandBuffer command_buffer, VkPipeline pipeline,
+                       VkViewport *viewport, VkRect2D *scissor) {
 
   VkClearValue clear_color = {{{0.1f, 0.2f, 0.3f, 1.0f}}};
 
   VkRenderPassBeginInfo render_pass_begin_info = {
       .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
       .renderPass = render_pass,
-      .framebuffer = framebuffer,
       .renderArea.offset = {0, 0},
       .renderArea.extent = extent,
       .clearValueCount = 1,
@@ -211,15 +217,16 @@ void begin_render_pass(VkRenderPass render_pass, VkFramebuffer framebuffer,
 void end_render_pass(VkCommandBuffer command_buffer) {
   vkCmdEndRenderPass(command_buffer);
 }
+*/
 
 void destroy_pipeline_layout(VkDevice logical_device,
                              VkPipelineLayout pipeline_layout) {
   vkDestroyPipelineLayout(logical_device, pipeline_layout, VK_NULL_HANDLE);
 }
 
-void destroy_render_pass(VkDevice logical_device, VkRenderPass render_pass) {
-  vkDestroyRenderPass(logical_device, render_pass, VK_NULL_HANDLE);
-}
+//void destroy_render_pass(VkDevice logical_device, VkRenderPass render_pass) {
+//  vkDestroyRenderPass(logical_device, render_pass, VK_NULL_HANDLE);
+//}
 
 void destroy_pipeline(VkDevice logical_device, VkPipeline pipeline) {
   vkDestroyPipeline(logical_device, pipeline, VK_NULL_HANDLE);

@@ -47,13 +47,13 @@ int main(void) {
 
   uint32_t image_count = bundle->image_count;
 
-  VkRenderPass render_pass =
-      create_render_pass(bundle->surface_format, logical_device);
-  INFO("Created render pass")
+  //VkRenderPass render_pass =
+//      create_render_pass(bundle->surface_format, logical_device);
+//  INFO("Created render pass")
 
-  VkFramebuffer *framebuffers = create_swapchain_framebuffers(
-      bundle->image_count, bundle->image_views, render_pass, bundle->extent,
-      logical_device);
+  // VkFramebuffer *framebuffers = create_swapchain_framebuffers(
+  //     bundle->image_count, bundle->image_views, render_pass, bundle->extent,
+  //     logical_device);
 
   /* TODO: Manage separate queues edge case */
 
@@ -68,7 +68,7 @@ int main(void) {
   VkPipelineLayout pipeline_layout = create_pipeline_layout(logical_device);
   VkPipeline pipeline =
       create_pipeline(&bundle->viewport, &bundle->scissor, logical_device,
-                      shader_stages, pipeline_layout, render_pass);
+                      shader_stages, pipeline_layout);
   INFO("Created pipeline")
 
   VkCommandPool command_pool =
@@ -103,6 +103,14 @@ int main(void) {
   uint32_t current_frame = 0;
   uint32_t frame_to_render = 0;
 
+  /* Swap chain images */
+  VkImage *images;
+  vkGetSwapchainImagesKHR(logical_device, bundle->swapchain, &image_count,
+                          VK_NULL_HANDLE);
+  images = calloc(sizeof(VkImage), image_count);
+  vkGetSwapchainImagesKHR(logical_device, bundle->swapchain, &image_count,
+                          images);
+
   while (!glfwWindowShouldClose(glfw_window)) {
     glfwPollEvents();
 
@@ -119,13 +127,106 @@ int main(void) {
                           VK_NULL_HANDLE, &imageIndex);
 
     begin_command_buffer(command_buffers[frame_to_render]);
-    begin_render_pass(render_pass, framebuffers[imageIndex], bundle->extent,
-                      command_buffers[frame_to_render], pipeline,
-                      &bundle->viewport, &bundle->scissor);
+
+    // begin_render_pass(render_pass, bundle->extent,
+    //                   command_buffers[frame_to_render], pipeline,
+    //                   &bundle->viewport, &bundle->scissor);
+
+    VkImageMemoryBarrier2 outputBarriers[1] = {
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask = 0,
+            .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+            .image = images[frame_to_render],
+            .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                 .levelCount = 1,
+                                 .layerCount = 1},
+        },
+
+        /*
+        {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+            .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+            .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+            .image = depthImage,
+            .subresourceRange{.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT |
+        VK_IMAGE_ASPECT_STENCIL_BIT, .levelCount = 1, .layerCount = 1 }
+        }
+        */
+    };
+
+    VkDependencyInfo barrierDependencyInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = outputBarriers};
+    vkCmdPipelineBarrier2(command_buffers[frame_to_render],
+                          &barrierDependencyInfo);
+
+    VkClearValue clear_color = {{{0.1f, 0.2f, 0.3f, 1.0f}}};
+    VkRenderingAttachmentInfo colorAttachmentInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .imageView = bundle->image_views[frame_to_render],
+        .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        .clearValue = clear_color,
+    };
+    VkRenderingAttachmentInfo depthAttachmentInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        // .imageView = depthImageView,
+        .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .clearValue = {.depthStencil = {1.0f, 0}}};
+
+    VkRenderingInfo renderingInfo = {.sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+                                     .renderArea = bundle->scissor,
+                                     .layerCount = 1,
+                                     .colorAttachmentCount = 1,
+                                     .pColorAttachments = &colorAttachmentInfo,
+                                     .pDepthAttachment = &depthAttachmentInfo};
+    vkCmdBeginRendering(command_buffers[frame_to_render], &renderingInfo);
+
+    vkCmdSetViewport(command_buffers[frame_to_render], 0, 1, &bundle->viewport);
+    vkCmdSetScissor(command_buffers[frame_to_render], 0, 1, &bundle->scissor);
+    vkCmdBindPipeline(command_buffers[frame_to_render],
+                      VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
     vkCmdDraw(command_buffers[frame_to_render], 3, 1, 0, 0);
 
-    end_render_pass(command_buffers[frame_to_render]);
+    // end_render_pass(command_buffers[frame_to_render]);
+
+    vkCmdEndRendering(command_buffers[frame_to_render]);
+
+    VkImageMemoryBarrier2 barrierPresent = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+        .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstAccessMask = 0,
+        .oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .image = images[frame_to_render],
+        .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                             .levelCount = 1,
+                             .layerCount = 1},
+    };
+    VkDependencyInfo barrierPresentDependencyInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &barrierPresent};
+    vkCmdPipelineBarrier2(command_buffers[frame_to_render],
+                          &barrierPresentDependencyInfo);
+
     end_command_buffer(command_buffers[frame_to_render]);
 
     /* Submit command buffer */
@@ -162,11 +263,12 @@ int main(void) {
     if (glfwGetKey(glfw_window, GLFW_KEY_R) == GLFW_PRESS) {
       recreate_swapchain_bundle(bundle, logical_device);
 
-      for (uint32_t i = 0; i < image_count; i++)
-        vkDestroyFramebuffer(logical_device, framebuffers[i], VK_NULL_HANDLE);
-      framebuffers = create_swapchain_framebuffers(
-          bundle->image_count, bundle->image_views, render_pass, bundle->extent,
-          logical_device);
+      // for (uint32_t i = 0; i < image_count; i++)
+      //   vkDestroyFramebuffer(logical_device, framebuffers[i],
+      //   VK_NULL_HANDLE);
+      // framebuffers = create_swapchain_framebuffers(
+      //     bundle->image_count, bundle->image_views, render_pass,
+      //     bundle->extent, logical_device);
     }
 
     current_frame++;
@@ -181,10 +283,10 @@ int main(void) {
     destroy_semaphore(logical_device, render_finished_semaphores[i]);
     destroy_fence(logical_device, fences[i]);
 
-    vkDestroyFramebuffer(logical_device, framebuffers[i], VK_NULL_HANDLE);
+    // vkDestroyFramebuffer(logical_device, framebuffers[i], VK_NULL_HANDLE);
   }
   destroy_pipeline(logical_device, pipeline);
-  destroy_render_pass(logical_device, render_pass);
+  //destroy_render_pass(logical_device, render_pass);
   destroy_pipeline_layout(logical_device, pipeline_layout);
   destroy_shader_module(logical_device, vertex_shader_module);
   destroy_shader_module(logical_device, fragment_shader_module);
