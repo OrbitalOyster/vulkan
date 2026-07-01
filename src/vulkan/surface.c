@@ -43,9 +43,10 @@ uint32_t get_swapchain_image_count(VkSurfaceCapabilitiesKHR capabilities) {
   return image_count;
 }
 
+/* Look for VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR */
+/*
 VkSurfaceFormatKHR get_surface_format(VkPhysicalDevice physical_device,
                                       VkSurfaceKHR surface) {
-  /* Surface formats */
   uint32_t format_count = 0;
   vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &format_count,
                                        NULL);
@@ -55,7 +56,6 @@ VkSurfaceFormatKHR get_surface_format(VkPhysicalDevice physical_device,
       calloc(sizeof(VkSurfaceFormatKHR), format_count);
   vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &format_count,
                                        all_formats);
-  /* Look for VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR */
   VkSurfaceFormatKHR format = {0};
   for (uint32_t i = 0; i < format_count; i++) {
     if (all_formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
@@ -64,9 +64,9 @@ VkSurfaceFormatKHR get_surface_format(VkPhysicalDevice physical_device,
       break;
     }
   }
-  /* TODO: Didn't found format? */
   return format;
 }
+*/
 
 void destroy_surface(VkInstance instance, VkSurfaceKHR surface) {
   vkDestroySurfaceKHR(instance, surface, VK_NULL_HANDLE);

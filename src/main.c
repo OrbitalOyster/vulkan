@@ -47,9 +47,9 @@ int main(void) {
 
   uint32_t image_count = bundle->image_count;
 
-  //VkRenderPass render_pass =
-//      create_render_pass(bundle->surface_format, logical_device);
-//  INFO("Created render pass")
+  // VkRenderPass render_pass =
+  //      create_render_pass(bundle->surface_format, logical_device);
+  //  INFO("Created render pass")
 
   // VkFramebuffer *framebuffers = create_swapchain_framebuffers(
   //     bundle->image_count, bundle->image_views, render_pass, bundle->extent,
@@ -286,7 +286,7 @@ int main(void) {
     // vkDestroyFramebuffer(logical_device, framebuffers[i], VK_NULL_HANDLE);
   }
   destroy_pipeline(logical_device, pipeline);
-  //destroy_render_pass(logical_device, render_pass);
+  // destroy_render_pass(logical_device, render_pass);
   destroy_pipeline_layout(logical_device, pipeline_layout);
   destroy_shader_module(logical_device, vertex_shader_module);
   destroy_shader_module(logical_device, fragment_shader_module);

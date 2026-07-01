@@ -224,9 +224,9 @@ void destroy_pipeline_layout(VkDevice logical_device,
   vkDestroyPipelineLayout(logical_device, pipeline_layout, VK_NULL_HANDLE);
 }
 
-//void destroy_render_pass(VkDevice logical_device, VkRenderPass render_pass) {
-//  vkDestroyRenderPass(logical_device, render_pass, VK_NULL_HANDLE);
-//}
+// void destroy_render_pass(VkDevice logical_device, VkRenderPass render_pass) {
+//   vkDestroyRenderPass(logical_device, render_pass, VK_NULL_HANDLE);
+// }
 
 void destroy_pipeline(VkDevice logical_device, VkPipeline pipeline) {
   vkDestroyPipeline(logical_device, pipeline, VK_NULL_HANDLE);

@@ -6,6 +6,10 @@
 #include <stdlib.h>
 #include <vulkan/vulkan_core.h>
 
+/* Just need this */
+const VkFormat imageFormat = {VK_FORMAT_B8G8R8A8_SRGB};
+const VkColorSpaceKHR colorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+
 VkExtent2D create_swapchain_extent(GLFWwindow *glfw_window,
                                    VkSurfaceCapabilitiesKHR capabilities) {
   int w, h;
@@ -30,17 +34,19 @@ VkExtent2D create_swapchain_extent(GLFWwindow *glfw_window,
 }
 
 VkSwapchainKHR create_swapchain(VkSurfaceKHR surface, uint32_t image_count,
-                                VkSurfaceFormatKHR surface_format,
                                 VkExtent2D swapchain_extent,
                                 VkSurfaceCapabilitiesKHR capabilities,
                                 VkPresentModeKHR present_mode,
                                 VkDevice logical_device) {
+
   VkSwapchainCreateInfoKHR create_info = {
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .surface = surface,
       .minImageCount = image_count,
-      .imageFormat = surface_format.format,
-      .imageColorSpace = surface_format.colorSpace,
+      // .imageFormat = surface_format.format,
+      .imageFormat = imageFormat,
+      // .imageColorSpace = surface_format.colorSpace,
+      .imageColorSpace = colorSpace,
       .imageExtent = swapchain_extent,
       .imageArrayLayers = 1,
       .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -59,8 +65,7 @@ VkSwapchainKHR create_swapchain(VkSurfaceKHR surface, uint32_t image_count,
 
 VkImageView *create_swapchain_image_views(VkDevice logical_device,
                                           VkSwapchainKHR swapchain,
-                                          uint32_t *image_count,
-                                          VkSurfaceFormatKHR surface_format) {
+                                          uint32_t *image_count) {
   /* Swap chain images */
   VkImage *images;
   vkGetSwapchainImagesKHR(logical_device, swapchain, image_count,
@@ -74,7 +79,7 @@ VkImageView *create_swapchain_image_views(VkDevice logical_device,
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = images[i],
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = surface_format.format,
+        .format = imageFormat,
         .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
         .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
         .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -115,19 +120,17 @@ create_swapchain_bundle(VkPhysicalDevice physical_device,
       .offset = {0, 0},
       .extent = extent,
   };
-  VkSurfaceFormatKHR surface_format =
-      get_surface_format(physical_device, surface);
+  // VkSurfaceFormatKHR surface_format =
+  //     get_surface_format(physical_device, surface);
   VkPresentModeKHR present_mode = get_present_mode(physical_device, surface);
-  VkSwapchainKHR swapchain =
-      create_swapchain(surface, image_count, surface_format, extent,
-                       capabilities, present_mode, logical_device);
-  VkImageView *image_views = create_swapchain_image_views(
-      logical_device, swapchain, &image_count, surface_format);
+  VkSwapchainKHR swapchain = create_swapchain(
+      surface, image_count, extent, capabilities, present_mode, logical_device);
+  VkImageView *image_views =
+      create_swapchain_image_views(logical_device, swapchain, &image_count);
   /* Done */
   struct swapchain_bundle *result = calloc(sizeof(struct swapchain_bundle), 1);
   result->window = window;
   result->surface = surface;
-  result->surface_format = surface_format;
   result->present_mode = present_mode;
   result->capabilities = capabilities;
   result->extent = extent;
@@ -164,15 +167,14 @@ void recreate_swapchain_bundle(struct swapchain_bundle *bundle,
   bundle->scissor.extent = bundle->extent;
 
   bundle->swapchain = create_swapchain(bundle->surface, bundle->image_count,
-                                       bundle->surface_format, bundle->extent,
-                                       bundle->capabilities,
+                                       bundle->extent, bundle->capabilities,
                                        bundle->present_mode, logical_device);
 
   bundle->image_views = create_swapchain_image_views(
-      logical_device, bundle->swapchain, &bundle->image_count,
-      bundle->surface_format);
+      logical_device, bundle->swapchain, &bundle->image_count);
 }
 
+/*
 VkFramebuffer *create_swapchain_framebuffers(uint32_t count,
                                              VkImageView *image_views,
                                              VkRenderPass render_pass,
@@ -196,6 +198,7 @@ VkFramebuffer *create_swapchain_framebuffers(uint32_t count,
   }
   return swapchain_framebuffers;
 }
+*/
 
 void destroy_swapchain(VkDevice logical_device, VkSwapchainKHR swapchain,
                        VkImageView *image_views, uint32_t image_count) {

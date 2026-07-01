@@ -7,7 +7,6 @@
 struct swapchain_bundle {
   GLFWwindow *window;
   VkSurfaceKHR surface;
-  VkSurfaceFormatKHR surface_format;
   VkPresentModeKHR present_mode;
   VkSurfaceCapabilitiesKHR capabilities;
   uint32_t image_count;
@@ -27,11 +26,13 @@ create_swapchain_bundle(VkPhysicalDevice physical_device,
 void recreate_swapchain_bundle(struct swapchain_bundle *bundle,
                                VkDevice logical_device);
 
+/*
 VkFramebuffer *create_swapchain_framebuffers(uint32_t count,
                                              VkImageView *image_views,
                                              VkRenderPass renderPass,
                                              VkExtent2D swapchain_extent,
                                              VkDevice logical_device);
+                                             */
 
 void destroy_swapchain_bundle(VkDevice logical_device,
                               struct swapchain_bundle *bundle);

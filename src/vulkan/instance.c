@@ -22,14 +22,14 @@ VkInstance create_vulkan_instance(uint32_t glfw_extension_count,
       .ppEnabledLayerNames = required_validation_layers,
   };
   /* Get Vulkan extension count */
-  uint32_t vulkan_extension_count = 0;
-  vkEnumerateInstanceExtensionProperties(
-      VK_NULL_HANDLE, &vulkan_extension_count, VK_NULL_HANDLE);
+  //  uint32_t vulkan_extension_count = 0;
+  //  vkEnumerateInstanceExtensionProperties(
+  //      VK_NULL_HANDLE, &vulkan_extension_count, VK_NULL_HANDLE);
   /* Get extensions */
-  VkExtensionProperties *vulkan_extension_properties =
-      calloc(sizeof(VkExtensionProperties), vulkan_extension_count);
-  vkEnumerateInstanceExtensionProperties(
-      VK_NULL_HANDLE, &vulkan_extension_count, vulkan_extension_properties);
+  //  VkExtensionProperties *vulkan_extension_properties =
+  //      calloc(sizeof(VkExtensionProperties), vulkan_extension_count);
+  //  vkEnumerateInstanceExtensionProperties(
+  //      VK_NULL_HANDLE, &vulkan_extension_count, vulkan_extension_properties);
   VkInstance instance = VK_NULL_HANDLE;
   if (vkCreateInstance(&create_info, VK_NULL_HANDLE, &instance) != VK_SUCCESS)
     PANIC(1, "Unable to create Vulkan instance")

@@ -12,7 +12,8 @@ VkSurfaceCapabilitiesKHR
 get_surface_capabilities(VkPhysicalDevice physical_device,
                          VkSurfaceKHR surface);
 uint32_t get_swapchain_image_count(VkSurfaceCapabilitiesKHR capabilities);
-VkSurfaceFormatKHR get_surface_format(VkPhysicalDevice physical_device,
-                                      VkSurfaceKHR surface);
+
+// VkSurfaceFormatKHR get_surface_format(VkPhysicalDevice physical_device,
+//                                      VkSurfaceKHR surface);
 
 #endif
